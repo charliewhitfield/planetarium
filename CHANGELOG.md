@@ -12,6 +12,7 @@ See cloning and downloading instructions [here](https://www.ivoyager.dev/develop
 Under development using Godot 4.7.
 
 ### Changed
+* Sync 3RD_PARTY.md and IVOYAGER_WORKS.md with assets and Core submodule.
 * Added IVStarsVisual to scene tree (required by Core plugin changes).
 * Added IVScreenshotDialog to scene tree (required by Core plugin changes).
 * Set METER := 1.0 (was 1e-3). Core plugin changes cured the scale sensitivity that forced the smaller value.
