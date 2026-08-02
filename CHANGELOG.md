@@ -7,17 +7,17 @@ File format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 See cloning and downloading instructions [here](https://www.ivoyager.dev/developers/).
 
 
-## [v0.2] - UNRELEASED
+## [v0.2] - 2026-08-01
 
-Under development using Godot 4.7.
+Released using Godot 4.7.1.
 
 ### Changed
-* Sync 3RD_PARTY.md and IVOYAGER_WORKS.md with assets and Core submodule.
+* Sync 3RD_PARTY.md, IVOYAGER_WORKS.md and CREDITS.md with assets and Core submodule.
 * Added IVStarsVisual to scene tree (required by Core plugin changes).
 * Added IVScreenshotDialog to scene tree (required by Core plugin changes).
 * Set METER := 1.0 (was 1e-3). Core plugin changes cured the scale sensitivity that forced the smaller value.
-* Updated plugin ivoyager_core to v0.2.dev.
-* Updated plugin ivoyager_assistant to v0.0.2.dev.
+* Updated plugin ivoyager_core to v0.2.
+* Updated plugin ivoyager_assistant to v0.0.2.
 * Moved directory /tools and TRAJECTORIES.md into new submodule addons/tools. Its README.md indexes our asset generation and data conversion pipelines.
 
 
@@ -245,7 +245,7 @@ Requires non-Git-tracked **ivoyager_assets-0.0.10**; find in [ivoyager releases]
 * Updated submodule 'ivoyager' to v0.0.10.
 
 
-[v0.2]: https://github.com/ivoyager/planetarium/compare/v0.1.2...HEAD
+[v0.2]: https://github.com/ivoyager/planetarium/compare/v0.1.2...v0.2
 [v0.1.2]: https://github.com/ivoyager/planetarium/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/ivoyager/planetarium/compare/v0.1...v0.1.1
 [v0.1]: https://github.com/ivoyager/planetarium/compare/v0.0.25...v0.1
