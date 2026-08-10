@@ -7,6 +7,15 @@ File format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 See cloning and downloading instructions [here](https://www.ivoyager.dev/developers/).
 
 
+## [v0.2.1] - UNRELEASED
+
+Under development using Godot 4.7.1.
+
+### Changed
+* [Dev ongoing] Updating plugin ivoyager_core with v0.2.1.dev.
+* [Dev ongoing] Updating plugin ivoyager_assistant with v0.0.3.dev.
+
+
 ## [v0.2] - 2026-08-01
 
 Released using Godot 4.7.1.
