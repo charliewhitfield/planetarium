@@ -60,6 +60,7 @@ func _init() -> void:
 	IVCoreSettings.popops_can_stop_sim = false
 	IVCoreSettings.manage_engine_time_scale = false
 	IVCoreSettings.stroboscope_frames_per_second = 4.5
+	IVCoreSettings.enable_physical_light = true # user Options toggle "Physical Light"
 	
 	if is_web:
 		IVCoreSettings.disable_quit = true

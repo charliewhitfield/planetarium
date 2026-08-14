@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-I, Voyager Planetarium — an open-source 3D solar system simulator built on **Godot Engine 4.6+** using **GDScript**. Displays accurate orbital mechanics for planets, moons, spacecraft, and ~70k asteroids. Runs as a Windows desktop app or Progressive Web App.
+I, Voyager Planetarium — an open-source 3D solar system simulator built on **Godot Engine 4.7+** using **GDScript**. Displays accurate orbital mechanics for planets, moons, spacecraft, and ~70k asteroids. Runs as a Windows desktop app or Progressive Web App.
 
 ## Running the Project
 
@@ -50,7 +50,7 @@ This repo is a thin "shell" that configures and extends the core plugins:
 
 - `universe.gd` / `universe.tscn` — Main scene root (extends `Node3D`)
 - `preinitializer.gd` — Primary configuration entry point: sets `IVCoreSettings`, registers program objects, configures timekeeper and speed manager
-- `units.gd` — Replaces the default `IVUnits` singleton (critical `METER = 1e-3` scale constant)
+- `units.gd` — Replaces the default `IVUnits` singleton (sets the `METER` sim scale constant)
 - `view_cacher.gd` — Caches/restores camera positions
 - `gui/` — GUI panels composed from `ivoyager_core/ui_widgets/`
 
@@ -72,7 +72,7 @@ Components are decoupled via signals on `IVStateManager` and `IVGlobal`. Hook in
 
 ## Critical: Scale and Lighting
 
-The `METER` constant in `planetarium/units.gd` controls world scale. It is set to `1e-3` for Godot 4.5+ to support shadows at both planetary and spacecraft scales. **Changing this value breaks lighting/shadows** in platform-specific ways. See the extensive comments in that file before modifying.
+The `METER` constant in `planetarium/units.gd` controls world scale. Lighting and shadows have historically been extremely sensitive to it, in ways that varied by Godot version and export platform. As of Godot 4.7 with the ivoyager_core 0.2.dev shadow system, that sensitivity appears resolved — `METER = 1.0` (current) and `1e-3` both look correct in Forward+ and Compatibility, though HTML5 export is untested at the current value. That file keeps the running record of scale issues per version; read it before changing the constant, and add findings there.
 
 ## Asset & Data Pipelines
 

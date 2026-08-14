@@ -175,3 +175,19 @@ iv_reference_viewport_height={
 "type": "float",
 "value": 1080.0
 }
+iv_exposure={
+"type": "float",
+"value": 1.0
+}
+iv_emission_energy_scale={
+"type": "float",
+"value": 1.0
+}
+iv_emission_luminance_scale={
+"type": "float",
+"value": 0.0
+}
+iv_limb_scale={
+"type": "float",
+"value": 1.0
+}
