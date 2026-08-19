@@ -21,10 +21,10 @@ After above steps, your addons directory will contain three subdirectories: `ivo
 
 ### Copyright and licensing
 
-I, Voyager source code is licensed under [Apache 2.0](LICENSE.txt). Asset and data files fall into three documented groups:
+I, Voyager source code is licensed under [Apache 2.0](LICENSE.txt). Asset and data files are documented in three places:
 
-- [3RD_PARTY.md](3RD_PARTY.md) — files under third-party copyright and license; use must comply with their terms.
-- [IVOYAGER_WORKS.md](IVOYAGER_WORKS.md) — original I, Voyager works (models, maps, generated data) and attribution of the public-domain source data they derive from.
+- [IVOYAGER_ASSETS.md](IVOYAGER_ASSETS.md) — every distributed asset, individually: what it is, what it was made from, and its own copyright and license.
+- [3RD_PARTY.md](3RD_PARTY.md) — files carrying third-party content, listed by copyright holder and license, with the license texts in full; use must comply with their terms.
 - [CREDITS.md](CREDITS.md) — acknowledgments.
 
 ### Screen captures!
