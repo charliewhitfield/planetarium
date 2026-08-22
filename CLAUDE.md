@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-I, Voyager Planetarium — an open-source 3D solar system simulator built on **Godot Engine 4.6+** using **GDScript**. Displays accurate orbital mechanics for planets, moons, spacecraft, and ~70k asteroids. Runs as a Windows desktop app or Progressive Web App.
+I, Voyager Planetarium — an open-source 3D solar system simulator built on **Godot Engine 4.7+** using **GDScript**. Displays accurate orbital mechanics for planets, moons, spacecraft, and ~70k asteroids. Runs as a Windows desktop app or Progressive Web App.
 
 ## Running the Project
 
@@ -42,7 +42,7 @@ Two more submodules support development:
 - **ivoyager_assistant** — In-sim TCP/JSON-RPC server for AI-driven testing (see *Testing with the Assistant Plugin*)
 - **tools** — Python asset-generation and data-conversion scripts; not a Godot plugin (see *Asset & Data Pipelines*)
 
-A further directory, `addons/ivoyager_assets/`, holds 3D models and textures (not Git-tracked, downloaded by the editor plugin).
+A further directory, `addons/ivoyager_assets/`, holds 3D models and textures (not Git-tracked, downloaded by the editor plugin). It is also the deploy target of a separate private build tree — see *Changing a distributed asset* below before writing anything into it.
 
 ### Planetarium Shell (`planetarium/`)
 
@@ -50,7 +50,7 @@ This repo is a thin "shell" that configures and extends the core plugins:
 
 - `universe.gd` / `universe.tscn` — Main scene root (extends `Node3D`)
 - `preinitializer.gd` — Primary configuration entry point: sets `IVCoreSettings`, registers program objects, configures timekeeper and speed manager
-- `units.gd` — Replaces the default `IVUnits` singleton (critical `METER = 1e-3` scale constant)
+- `units.gd` — Replaces the default `IVUnits` singleton (sets the `METER` sim scale constant)
 - `view_cacher.gd` — Caches/restores camera positions
 - `gui/` — GUI panels composed from `ivoyager_core/ui_widgets/`
 
@@ -72,13 +72,24 @@ Components are decoupled via signals on `IVStateManager` and `IVGlobal`. Hook in
 
 ## Critical: Scale and Lighting
 
-The `METER` constant in `planetarium/units.gd` controls world scale. It is set to `1e-3` for Godot 4.5+ to support shadows at both planetary and spacecraft scales. **Changing this value breaks lighting/shadows** in platform-specific ways. See the extensive comments in that file before modifying.
+The `METER` constant in `planetarium/units.gd` controls world scale. Lighting and shadows have historically been extremely sensitive to it, in ways that varied by Godot version and export platform. As of Godot 4.7 with the ivoyager_core 0.2.dev shadow system, that sensitivity appears resolved — `METER = 1.0` (current) and `1e-3` both look correct in Forward+ and Compatibility, though HTML5 export is untested at the current value. That file keeps the running record of scale issues per version; read it before changing the constant, and add findings there.
 
 ## Asset & Data Pipelines
 
 Body models, texture maps, star binaries and generated table data are all produced by Python scripts in the **`addons/tools/`** submodule. **`addons/tools/README.md` indexes every pipeline** — go there to find the script for an existing one, or to add a new one. It also carries the conventions they share: run from the project directory, where outputs go, the attribution entry a new asset needs, and the reimport step required after writing a `.tsv` or an asset. Each script's module docstring is its full specification.
 
 Spacecraft trajectory and ephemeris work has its own reference, **`addons/tools/TRAJECTORIES.md`** (the patched-conic model, the NASA/JPL HORIZONS source and query pipeline, the HORIZONS → `orbits.tsv` mapping, gap closing/segmentation, time base, and known imprecisions). Read it only when creating or working with spacecraft trajectories.
+
+### Changing a distributed asset
+
+`addons/ivoyager_assets/` is the **deploy target** of `C:/godot/ivoyager_assets_build/`, a separate private repository holding the original source imagery, the repair inputs, the correction parameters and the provenance record for every map, mesh and model we ship. Most asset work belongs there, not here; that repo's `CLAUDE.md` is its specification.
+
+If you add, replace, re-level, rename or retire anything under `addons/ivoyager_assets/`, two steps are required from this side and neither is optional:
+
+- **Read `C:/godot/ivoyager_assets_build/ATTRIBUTION_MIRRORS.md`, then update the attribution documents.** Every distributed asset needs an entry in `IVOYAGER_ASSETS.md`, plus a listing in `3RD_PARTY.md` if any part of its content is third-party. `CREDITS.md` takes the acknowledgments the other two do not carry. All three are mastered in `C:/godot/asset_downloads/` and mirrored byte-identical into seven locations — three of them inside this repository (the project root, `addons/ivoyager_core/` and `addons/ivoyager_assets/`) — so editing only the copy in front of you leaves the set silently divergent. That file specifies what belongs in which document, how a copyright claim is decided, where every copy lives, and the hash sweep that verifies them.
+- **Record the work in `C:/godot/ivoyager_assets_build/records/<Body>.md`** — what the source is, why it was chosen over the alternatives, every defect found, and every modification applied with its parameters. Write it as the work happens. That private record is what makes the public attribution documents writable months later, and the documents themselves are forbidden to carry history, so anything not written down there is lost.
+
+Neither step applies to a change confined to this repository — a shader, a table value, a scene.
 
 ## Branching
 
@@ -97,3 +108,5 @@ When running the Planetarium for testing:
 ## License
 
 Apache License 2.0. All source files carry the standard I, Voyager copyright header.
+
+This does **not** extend to `addons/ivoyager_assets/`. Those files are licensed individually — many are third-party, several are public domain, and only some are I, Voyager works under Apache 2.0. `IVOYAGER_ASSETS.md` states the copyright and license of each one; `3RD_PARTY.md` lists the third-party content by holder and license, with the license texts in full.
