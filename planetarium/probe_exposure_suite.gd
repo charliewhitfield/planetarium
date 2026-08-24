@@ -28,7 +28,9 @@ func _on_about_to_free() -> void:
 func get_method_names() -> Array[String]:
 	return ["get_exposure_state", "get_photometry", "get_metering_table", "set_physical_light",
 			"get_body_debug", "set_ambient_energy", "set_reflected_light", "list_lights",
-			"poke_sky_radiance", "get_shadow_receivers"]
+			"poke_sky_radiance", "get_shadow_receivers", "set_exposure_ceiling",
+			"get_limb_samples", "set_limb_meter",
+			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time"]
 
 
 func get_method_summaries() -> Dictionary:
@@ -43,6 +45,13 @@ func get_method_summaries() -> Dictionary:
 		"list_lights": "List every Light3D in the tree with energy/visibility.",
 		"poke_sky_radiance": "Rewrite the sky material's energy_multiplier to trigger a radiance rebake.",
 		"get_shadow_receivers": "Report per-body analytic-occlusion opt-in, visual layers, and parent-shadow fraction.",
+		"set_limb_meter": "Override the limb ramp at runtime ({\"start\": float, \"full\": float, \"edge\": float}; omit a key to keep it).",
+		"list_saved_views": "List the user's cached views by collection ({}); apply_view covers table views only.",
+		"apply_saved_view": "Apply one cached view ({\"name\": String, \"collection\": String}).",
+		"get_render_time": "Last frame's measured viewport render times ({}); enables measurement on first call, so poll and average.",
+		"project_limb_circle": "Screen positions of a body's silhouette circle at a given altitude ({\"name\": entity_name, \"altitude_km\": float, \"samples\": int}); the projection is the engine's own, so it holds off axis, where a sphere's silhouette is an ellipse and a circle fit is meaningless.",
+		"get_limb_samples": "Per-sample breakdown of one body's limb ring ({\"name\": entity_name}).",
+		"set_exposure_ceiling": "Override a body's shells.tsv exposure_ceiling / limb_exposure_ceiling cells at runtime ({\"name\": entity_name, \"ceiling\": float, \"limb_only\": bool}); 0.0 removes them.",
 	}
 
 
@@ -68,7 +77,75 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 			return _poke_sky_radiance()
 		"get_shadow_receivers":
 			return _get_shadow_receivers()
+		"set_exposure_ceiling":
+			return _set_exposure_ceiling(params)
+		"get_limb_samples":
+			return _get_limb_samples(params)
+		"set_limb_meter":
+			return _set_limb_meter(params)
+		"project_limb_circle":
+			return _project_limb_circle(params)
+		"list_saved_views":
+			return _list_saved_views()
+		"apply_saved_view":
+			return _apply_saved_view(params)
+		"get_render_time":
+			return _get_render_time()
 	return {"_error": {"code": ERR_UNKNOWN_METHOD, "message": "Unknown method: %s" % method}}
+
+
+func _get_render_time() -> Variant:
+	# viewport_get_measured_render_time_* report the LAST measured frame, and measurement
+	# starts only when enabled -- so the first call returns zeros and the caller polls.
+	var viewport := IVGlobal.get_viewport()
+	var rid := viewport.get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(rid, true)
+	return {
+		"cpu_ms": RenderingServer.viewport_get_measured_render_time_cpu(rid),
+		"gpu_ms": RenderingServer.viewport_get_measured_render_time_gpu(rid),
+	}
+
+
+func _set_exposure_ceiling(params: Dictionary) -> Variant:
+	var manager_var: Variant = IVGlobal.program.get(&"ExposureManager")
+	if not manager_var is IVExposureManager:
+		return {"_error": {"code": ERR_NOT_ALLOWED,
+				"message": "No ExposureManager (enable_physical_light off?)"}}
+	var manager: IVExposureManager = manager_var
+	var name_var: Variant = params.get("name", "")
+	if typeof(name_var) != TYPE_STRING:
+		return {"_error": {"code": ERR_INVALID_PARAMS, "message": "Missing 'name' string"}}
+	var name_string: String = name_var
+	var body_name := StringName(name_string)
+	var ceiling_var: Variant = params.get("ceiling")
+	if typeof(ceiling_var) != TYPE_FLOAT:
+		return {"_error": {"code": ERR_INVALID_PARAMS, "message": "Missing 'ceiling' float"}}
+	var ceiling: float = ceiling_var
+	# "limb_only": leave the body's own shell ceilings alone. Neutralising Earth's surface
+	# cell along with its limb one uncaps its city lights, which then clip and are counted
+	# as a blown limb by anything measuring the frame.
+	var limb_only: bool = params.get("limb_only", false)
+	var has_shell := !limb_only and manager._exposure_ceilings.has(body_name)
+	var has_limb := manager._limb_ceilings.has(body_name)
+	if !has_shell and !has_limb:
+		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "No ceiling shell for %s"
+				% body_name}}
+	var out: Array[Vector2] = []
+	if has_shell:
+		var shells: Array = manager._exposure_ceilings[body_name]
+		for shell: Vector2 in shells:
+			out.append(Vector2(shell.x, ceiling))
+		if ceiling > 0.0:
+			manager._exposure_ceilings[body_name] = out
+		else:
+			manager._exposure_ceilings.erase(body_name)
+	if has_limb:
+		if ceiling > 0.0:
+			manager._limb_ceilings[body_name] = ceiling
+		else:
+			manager._limb_ceilings.erase(body_name)
+	return {"name": String(body_name), "ceiling": ceiling, "shells": out.size(),
+			"limb": has_limb}
 
 
 func _set_ambient_energy(params: Dictionary) -> Variant:
@@ -128,10 +205,18 @@ func _get_body_debug(params: Dictionary) -> Variant:
 	var camera_distance := -1.0
 	if camera:
 		camera_distance = (body.global_position - camera.global_position).length()
+	var view_size := Vector2.ZERO
+	var fov := 0.0
+	if camera:
+		view_size = camera.get_viewport().get_visible_rect().size
+		fov = camera.fov
 	return {
 		"visible": body.visible,
 		"mean_radius": body.mean_radius,
 		"camera_distance": camera_distance,
+		"fov": fov,
+		"fps": Engine.get_frames_per_second(),
+		"view_size": [view_size.x, view_size.y],
 		"flags": body.flags,
 		"albedo_characteristic": body.characteristics.get(&"albedo"),
 		"child_count": body.get_child_count(),
@@ -235,6 +320,10 @@ func _get_photometry() -> Dictionary:
 		"nightside_twilight_angle": manager.nightside_twilight_angle,
 		"star_meter_fraction_start": manager.star_meter_fraction_start,
 		"star_meter_fraction_full": manager.star_meter_fraction_full,
+		"limb_meter_fraction_start": manager.limb_meter_fraction_start,
+		"limb_meter_fraction_full": manager.limb_meter_fraction_full,
+		"limb_meter_edge_fraction": manager.limb_meter_edge_fraction,
+		"meter_edge_fraction": manager.meter_edge_fraction,
 		"ambient_starlight_illuminance": manager.ambient_starlight_illuminance,
 		"mag0_illuminance": IVAstronomy.MAG0_ILLUMINANCE,
 		"sb0_luminance": IVAstronomy.SB0_LUMINANCE,
@@ -348,7 +437,7 @@ func _get_metering_table() -> Dictionary:
 				"name": String(body_name), "candidate": tag,
 				"screen_fraction": candidate_fraction, "weight": weight,
 				"view_factor": view_factor, "lit_visible": lit_visible,
-				"horizon_factor": horizon_factor, "albedo": albedo,
+				"horizon_factor": horizon_factor, "phase_cos": phase_cos, "albedo": albedo,
 				"luminance": luminance,
 				"candidate_exposure": _candidate_exposure(manager, luminance, weight,
 						log_rest, rest_exposure),
@@ -358,6 +447,14 @@ func _get_metering_table() -> Dictionary:
 				tan_half_fov, aspect, log_rest, rest_exposure)
 		if !ring_row.is_empty():
 			rows.append(ring_row)
+		for ceiling_row in _get_ceiling_rows(manager, camera, body, camera_distance,
+				fraction_per_theta_sq, view_size, tan_half_fov, aspect, log_rest, rest_exposure):
+			rows.append(ceiling_row)
+		var limb_row := _get_limb_ceiling_row(manager, camera, body, camera_vector,
+				camera_distance, star_vector, star_distance, fraction_per_theta_sq, view_size,
+				log_rest, rest_exposure)
+		if !limb_row.is_empty():
+			rows.append(limb_row)
 	return {
 		"exposure": IVExposureManager.exposure,
 		"rest_exposure": rest_exposure,
@@ -428,6 +525,105 @@ func _get_ring_row(manager: IVExposureManager, camera: Camera3D, body: IVBody,
 		"phase_factor": phase_factor, "luminance": ring_luminance,
 		"candidate_exposure": _candidate_exposure(manager, ring_luminance, ring_weight,
 				log_rest, rest_exposure),
+	}
+
+
+# Mirrors IVExposureManager._get_ceiling_candidate_exposure: one row per shell of this body
+# that asserts an exposure_ceiling in shells.tsv.
+func _get_ceiling_rows(manager: IVExposureManager, camera: Camera3D, body: IVBody,
+		camera_distance: float, fraction_per_theta_sq: float, view_size: Vector2,
+		tan_half_fov: float, aspect: float, log_rest: float,
+		rest_exposure: float) -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	var ceilings: Array = manager._exposure_ceilings.get(body.name, [])
+	for shell: Vector2 in ceilings:
+		var angular_radius := minf(shell.x / camera_distance, 1.0)
+		var shell_fraction := fraction_per_theta_sq * angular_radius * angular_radius
+		var view_factor := _view_factor(camera, manager, body.global_position, angular_radius,
+				view_size, tan_half_fov, aspect)
+		var weight := view_factor * _ramp_weight(shell_fraction, manager.meter_fraction_start,
+				manager.meter_fraction_full)
+		if weight <= 0.0:
+			continue
+		var shaped := 1.0 - (1.0 - weight) ** manager.meter_transition_exponent
+		rows.append({
+			"name": String(body.name), "candidate": "ceiling",
+			"screen_fraction": shell_fraction, "weight": weight, "view_factor": view_factor,
+			"shell_radius_km": shell.x / IVUnits.KM, "ceiling": shell.y,
+			"candidate_exposure": exp(lerpf(log_rest, log(minf(shell.y, rest_exposure)), shaped)),
+		})
+	return rows
+
+
+# Mirrors IVExposureManager._get_limb_ceiling_candidate_exposure: the lit, in-frame share of
+# the limb sampled at the disc's silhouette (its foot), and what it holds of that shell's
+# limb_exposure_ceiling.
+func _get_limb_ceiling_row(manager: IVExposureManager, camera: Camera3D, body: IVBody,
+		camera_vector: Vector3, camera_distance: float, star_vector: Vector3,
+		star_distance: float, fraction_per_theta_sq: float, view_size: Vector2,
+		log_rest: float, rest_exposure: float) -> Dictionary:
+	const RING_SAMPLES := 32
+	if !manager._limb_ceilings.has(body.name):
+		return {}
+	var ceiling: float = manager._limb_ceilings[body.name]
+	var limb: Vector2 = manager._limb_geometry[body.name]
+	var disc_radius := limb.x
+	var shell_radius := limb.y
+	var limb_height := shell_radius - disc_radius
+	if limb_height <= 0.0 or camera_distance <= disc_radius:
+		return {}
+	var camera_position := body.global_position - camera_vector
+	var to_camera := -camera_vector / camera_distance
+	var to_star := star_vector / star_distance
+	var ring_radius := disc_radius * sqrt(maxf(1.0 - disc_radius * disc_radius
+			/ (camera_distance * camera_distance), 0.0))
+	var ring_center := body.global_position + to_camera * (disc_radius * disc_radius
+			/ camera_distance)
+	var sunward_axis := to_star - to_camera * to_star.dot(to_camera)
+	if sunward_axis.length_squared() < 1e-12:
+		sunward_axis = to_camera.cross(Vector3.UP if absf(to_camera.y) < 0.9 else Vector3.RIGHT)
+	sunward_axis = sunward_axis.normalized()
+	var crosswise_axis := to_camera.cross(sunward_axis)
+	var lit_samples := 0.0
+	var visible_lit := 0.0
+	for i in RING_SAMPLES:
+		var azimuth := TAU * (i + 0.5) / RING_SAMPLES
+		var point := ring_center + (sunward_axis * cos(azimuth)
+				+ crosswise_axis * sin(azimuth)) * ring_radius
+		var solar_cosine := (point - body.global_position).dot(to_star) / disc_radius
+		var lit := 1.0
+		if solar_cosine < 0.0:
+			var sin_zenith := sqrt(maxf(1.0 - solar_cosine * solar_cosine, 1e-12))
+			lit = clampf((shell_radius - disc_radius / sin_zenith) / limb_height, 0.0, 1.0)
+		var to_viewer := (camera_position - point).normalized()
+		lit *= maxf(-to_star.dot(to_viewer), 0.0)
+		if lit <= 0.0:
+			continue
+		lit_samples += lit
+		if camera.is_position_behind(point):
+			continue
+		var screen_position := camera.unproject_position(point)
+		var position_x := screen_position.x / view_size.x
+		var position_y := screen_position.y / view_size.y
+		var penetration := minf(minf(position_x, 1.0 - position_x),
+				minf(position_y, 1.0 - position_y))
+		if penetration <= 0.0:
+			continue
+		visible_lit += lit * smoothstep(0.0, maxf(manager.limb_meter_edge_fraction, 1e-4),
+				penetration)
+	var angular_radius := minf(shell_radius / camera_distance, 1.0)
+	var ring_fraction := fraction_per_theta_sq * angular_radius * angular_radius
+	var limb_fraction := ring_fraction * visible_lit / RING_SAMPLES
+	var weight := _ramp_weight(limb_fraction, manager.limb_meter_fraction_start,
+			manager.limb_meter_fraction_full)
+	var shaped := 1.0 - (1.0 - weight) ** manager.meter_transition_exponent
+	return {
+		"name": String(body.name), "candidate": "limb_ceiling",
+		"screen_fraction": limb_fraction, "weight": weight,
+		"lit_ring_fraction": lit_samples / RING_SAMPLES,
+		"visible_lit_ring_fraction": visible_lit / RING_SAMPLES,
+		"shell_radius_km": shell_radius / IVUnits.KM, "ceiling": ceiling,
+		"candidate_exposure": exp(lerpf(log_rest, log(minf(ceiling, rest_exposure)), shaped)),
 	}
 
 
@@ -536,3 +732,200 @@ func _parent_shadow_fraction(body: IVBody, star: IVBody) -> float:
 	var separation := acos(clampf(cos_separation, -1.0, 1.0))
 	return IVAstronomy.get_two_disc_visible_fraction(star_angular_radius, parent_angular_radius,
 			separation)
+
+
+# Per-sample breakdown of the limb ring for one body: what each azimuth sample's solar
+# zenith, lit measure and frame penetration are, so a steep or early transition can be
+# attributed to a sample rather than inferred from the total.
+func _get_limb_samples(params: Dictionary) -> Variant:
+	const RING_SAMPLES := 32
+	const SHADOW_SOFTNESS := 0.05
+	var manager_var: Variant = IVGlobal.program.get(&"ExposureManager")
+	if not manager_var is IVExposureManager:
+		return {"_error": {"code": ERR_NOT_ALLOWED, "message": "no ExposureManager"}}
+	var manager: IVExposureManager = manager_var
+	var name_string: String = params.get("name", "MOON_TITAN")
+	var body_name := StringName(name_string)
+	if !manager._limb_ceilings.has(body_name) or !IVBody.bodies.has(body_name):
+		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no limb row for %s" % body_name}}
+	var body: IVBody = IVBody.bodies[body_name]
+	var camera := IVGlobal.get_viewport().get_camera_3d()
+	var star: IVBody = IVBody.bodies[&"STAR_SUN"]
+	var view_size := camera.get_viewport().get_visible_rect().size
+	var camera_vector := body.global_position - camera.global_position
+	var camera_distance := camera_vector.length()
+	var star_vector := star.global_position - body.global_position
+	var star_distance := star_vector.length()
+	var limb: Vector2 = manager._limb_geometry[body_name]
+	var disc_radius := limb.x
+	var shell_radius := limb.y
+	var to_camera := -camera_vector / camera_distance
+	var to_star := star_vector / star_distance
+	var ring_radius := disc_radius * sqrt(maxf(1.0 - disc_radius * disc_radius
+			/ (camera_distance * camera_distance), 0.0))
+	var ring_center := body.global_position + to_camera * (disc_radius * disc_radius
+			/ camera_distance)
+	var sunward_axis := to_star - to_camera * to_star.dot(to_camera)
+	if sunward_axis.length_squared() < 1e-12:
+		sunward_axis = to_camera.cross(Vector3.UP if absf(to_camera.y) < 0.9 else Vector3.RIGHT)
+	sunward_axis = sunward_axis.normalized()
+	var crosswise_axis := to_camera.cross(sunward_axis)
+	# What the retired test asked: one point at the SHELL radius, in or out of the cylinder.
+	var shadow_cosine := -sqrt(maxf(1.0 - disc_radius * disc_radius
+			/ (shell_radius * shell_radius), 0.0))
+	var samples: Array = []
+	for i in RING_SAMPLES:
+		var azimuth := TAU * (i + 0.5) / RING_SAMPLES
+		var point := ring_center + (sunward_axis * cos(azimuth)
+				+ crosswise_axis * sin(azimuth)) * ring_radius
+		var solar_cosine := (point - body.global_position).dot(to_star) / disc_radius
+		var lit := smoothstep(shadow_cosine - SHADOW_SOFTNESS,
+				shadow_cosine + SHADOW_SOFTNESS, solar_cosine)
+		# What it asks now: how much of the limb's height above this foot stands above the
+		# shadow (1 at the terminator, 0 where the shadow tops the shell).
+		var graded := 1.0
+		if solar_cosine < 0.0:
+			var sin_zenith := sqrt(maxf(1.0 - solar_cosine * solar_cosine, 1e-12))
+			var shadow_radius := disc_radius / sin_zenith
+			graded = clampf((shell_radius - shadow_radius) / maxf(shell_radius - disc_radius,
+					1e-12), 0.0, 1.0)
+		var to_viewer := ((body.global_position - camera_vector) - point).normalized()
+		var forward := maxf(-to_star.dot(to_viewer), 0.0)
+		var behind := camera.is_position_behind(point)
+		var screen_position := Vector2.ZERO
+		var penetration := -1.0
+		if !behind:
+			screen_position = camera.unproject_position(point)
+			penetration = minf(minf(screen_position.x / view_size.x,
+					1.0 - screen_position.x / view_size.x),
+					minf(screen_position.y / view_size.y, 1.0 - screen_position.y / view_size.y))
+		samples.append({
+			"i": i, "azimuth_deg": rad_to_deg(azimuth),
+			"solar_zenith_deg": rad_to_deg(acos(clampf(solar_cosine, -1.0, 1.0))),
+			"lit": lit, "graded": graded, "forward": forward,
+			"credit": graded * forward, "behind": behind,
+			"screen_x": screen_position.x / view_size.x,
+			"screen_y": screen_position.y / view_size.y,
+			"penetration": penetration,
+			"edge_weight": 0.0 if penetration <= 0.0 else smoothstep(0.0,
+					maxf(manager.limb_meter_edge_fraction, 1e-4), penetration),
+		})
+	return {
+		"body": String(body_name), "camera_distance_km": camera_distance / IVUnits.KM,
+		"disc_radius_km": disc_radius / IVUnits.KM,
+		"shell_radius_km": shell_radius / IVUnits.KM,
+		"ring_radius_km": ring_radius / IVUnits.KM,
+		"shadow_cutoff_zenith_deg": rad_to_deg(acos(clampf(shadow_cosine, -1.0, 1.0))),
+		"phase_deg": rad_to_deg(acos(clampf(-star_vector.dot(camera_vector)
+				/ (star_distance * camera_distance), -1.0, 1.0))),
+		"samples": samples,
+	}
+
+
+# The assistant's apply_view reaches table views only; a view the maintainer saved in the app
+# lives in IVViewManager.cached_views, keyed "<name>.<collection>".
+func _list_saved_views() -> Variant:
+	var manager_var: Variant = IVGlobal.program.get(&"ViewManager")
+	if not manager_var is IVViewManager:
+		return {"_error": {"code": ERR_NOT_ALLOWED, "message": "no ViewManager"}}
+	var manager: IVViewManager = manager_var
+	var keys: Array = []
+	for key: StringName in manager.cached_views:
+		keys.append(String(key))
+	return {"cached": keys}
+
+
+func _apply_saved_view(params: Dictionary) -> Variant:
+	var manager_var: Variant = IVGlobal.program.get(&"ViewManager")
+	if not manager_var is IVViewManager:
+		return {"_error": {"code": ERR_NOT_ALLOWED, "message": "no ViewManager"}}
+	var manager: IVViewManager = manager_var
+	var view_name: String = params.get("name", "")
+	var collection: String = params.get("collection", "view_cacher")
+	if !manager.has_view(view_name, collection, true):
+		return {"_error": {"code": ERR_DOES_NOT_EXIST,
+				"message": "no cached view '%s.%s'" % [view_name, collection]}}
+	manager.set_view(view_name, collection, true, true)
+	return {"ok": true, "name": view_name, "collection": collection}
+
+
+# Where a body's silhouette at some altitude above its disc lands on screen. A sphere seen off
+# axis silhouettes as an ELLIPSE, so a circle fit to the projected points is meaningless there
+# (measured: 1079 px of residual at 45 deg of yaw) -- this asks the engine's own camera instead,
+# which holds at any orientation and is what makes a limb profile measurable at the camera floor.
+func _project_limb_circle(params: Dictionary) -> Variant:
+	var name_string: String = params.get("name", "MOON_TITAN")
+	var body_name := StringName(name_string)
+	if !IVBody.bodies.has(body_name):
+		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no body %s" % body_name}}
+	var manager_var: Variant = IVGlobal.program.get(&"ExposureManager")
+	if not manager_var is IVExposureManager:
+		return {"_error": {"code": ERR_NOT_ALLOWED, "message": "no ExposureManager"}}
+	var manager: IVExposureManager = manager_var
+	if !manager._limb_geometry.has(body_name):
+		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no limb row for %s" % body_name}}
+	var body: IVBody = IVBody.bodies[body_name]
+	var camera := IVGlobal.get_viewport().get_camera_3d()
+	var view_size := camera.get_viewport().get_visible_rect().size
+	var altitude: float = params.get("altitude_km", 0.0) * IVUnits.KM
+	var count: int = params.get("samples", 64)
+	var limb: Vector2 = manager._limb_geometry[body_name]
+	var radius := limb.x + altitude
+	var camera_vector := body.global_position - camera.global_position
+	var camera_distance := camera_vector.length()
+	if radius >= camera_distance:
+		return {"_error": {"code": ERR_INVALID_PARAMETER, "message": "radius exceeds distance"}}
+	var to_camera := -camera_vector / camera_distance
+	var star: IVBody = IVBody.bodies[&"STAR_SUN"]
+	var to_star := (star.global_position - body.global_position).normalized()
+	var ring_radius := radius * sqrt(maxf(1.0 - radius * radius
+			/ (camera_distance * camera_distance), 0.0))
+	var ring_center := body.global_position + to_camera * (radius * radius / camera_distance)
+	var sunward_axis := to_star - to_camera * to_star.dot(to_camera)
+	if sunward_axis.length_squared() < 1e-12:
+		sunward_axis = to_camera.cross(Vector3.UP if absf(to_camera.y) < 0.9 else Vector3.RIGHT)
+	sunward_axis = sunward_axis.normalized()
+	var crosswise_axis := to_camera.cross(sunward_axis)
+	var points: Array = []
+	for i in count:
+		var azimuth := TAU * (i + 0.5) / count
+		var point := ring_center + (sunward_axis * cos(azimuth)
+				+ crosswise_axis * sin(azimuth)) * ring_radius
+		var behind := camera.is_position_behind(point)
+		var screen_position := Vector2.ZERO if behind else camera.unproject_position(point)
+		points.append({
+			"azimuth_deg": rad_to_deg(azimuth), "behind": behind,
+			"solar_zenith_deg": rad_to_deg(acos(clampf(
+					(point - body.global_position).dot(to_star) / radius, -1.0, 1.0))),
+			"screen_x": screen_position.x / view_size.x,
+			"screen_y": screen_position.y / view_size.y,
+		})
+	return {
+		"body": String(body_name), "altitude_km": altitude / IVUnits.KM,
+		"disc_radius_km": limb.x / IVUnits.KM, "shell_radius_km": limb.y / IVUnits.KM,
+		"camera_distance_km": camera_distance / IVUnits.KM,
+		"view_size": [view_size.x, view_size.y], "points": points,
+	}
+
+
+# Runtime override of the limb ramp, so a to-taste value can be swept in one app run rather
+# than one run per candidate.
+func _set_limb_meter(params: Dictionary) -> Variant:
+	var manager_var: Variant = IVGlobal.program.get(&"ExposureManager")
+	if not manager_var is IVExposureManager:
+		return {"_error": {"code": ERR_NOT_ALLOWED, "message": "no ExposureManager"}}
+	var manager: IVExposureManager = manager_var
+	if params.has("start"):
+		var start: float = params["start"]
+		manager.limb_meter_fraction_start = start
+	if params.has("full"):
+		var full: float = params["full"]
+		manager.limb_meter_fraction_full = full
+	if params.has("edge"):
+		var edge: float = params["edge"]
+		manager.limb_meter_edge_fraction = edge
+	return {
+		"limb_meter_fraction_start": manager.limb_meter_fraction_start,
+		"limb_meter_fraction_full": manager.limb_meter_fraction_full,
+		"limb_meter_edge_fraction": manager.limb_meter_edge_fraction,
+	}
