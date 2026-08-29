@@ -12,6 +12,7 @@ See cloning and downloading instructions [here](https://www.ivoyager.dev/develop
 Under development using Godot 4.7.2.
 
 ### Added
+* Added IVBody_REDESIGN_v0.3.md planning doc.
 * Added the Core plugin's new `IVExposureControl` widget to the control panel.
 * Enabled the Core plugin's new physical-light system (`IVCoreSettings.enable_physical_light`): physically calibrated sunlight, sky and ambient with a software compensating camera. A "Physical Light" row appears in Options (default on). Registered the required `iv_exposure` shader global in project.godot.
 
