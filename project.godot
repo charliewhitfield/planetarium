@@ -151,6 +151,7 @@ motion_fix_enabled=true
 
 lights_and_shadows/directional_shadow/16_bits=false
 lights_and_shadows/positional_shadow/soft_shadow_filter_quality=3
+anti_aliasing/quality/use_debanding=true
 environment/defaults/default_clear_color=Color(0, 0, 0, 1)
 
 [shader_globals]
@@ -190,4 +191,8 @@ iv_emission_luminance_scale={
 iv_limb_scale={
 "type": "float",
 "value": 1.0
+}
+iv_display_encode={
+"type": "float",
+"value": 0.0
 }

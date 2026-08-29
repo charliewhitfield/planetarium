@@ -30,7 +30,8 @@ func get_method_names() -> Array[String]:
 			"get_body_debug", "set_ambient_energy", "set_reflected_light", "list_lights",
 			"poke_sky_radiance", "get_shadow_receivers", "set_exposure_ceiling",
 			"get_limb_samples", "set_limb_meter",
-			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time"]
+			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time",
+			"set_shell_visible", "set_shell_param"]
 
 
 func get_method_summaries() -> Dictionary:
@@ -51,6 +52,8 @@ func get_method_summaries() -> Dictionary:
 		"get_render_time": "Last frame's measured viewport render times ({}); enables measurement on first call, so poll and average.",
 		"project_limb_circle": "Screen positions of a body's silhouette circle at a given altitude ({\"name\": entity_name, \"altitude_km\": float, \"samples\": int}); the projection is the engine's own, so it holds off axis, where a sphere's silhouette is an ellipse and a circle fit is meaningless.",
 		"get_limb_samples": "Per-sample breakdown of one body's limb ring ({\"name\": entity_name}).",
+		"set_shell_param": "Set one shader parameter on one shell's material ({\"name\": entity_name, \"shell\": int, \"param\": String, \"value\": float}); sweeps a candidate in ONE app run instead of one run per value.",
+		"set_shell_visible": "Show or hide one IVShellsModel shell ({\"name\": entity_name, \"shell\": int, \"visible\": bool}); shell 0 is the surface, 1..N its overlays. Decomposes a rendered pixel into the shells that built it.",
 		"set_exposure_ceiling": "Override a body's shells.tsv exposure_ceiling / limb_exposure_ceiling cells at runtime ({\"name\": entity_name, \"ceiling\": float, \"limb_only\": bool}); 0.0 removes them.",
 	}
 
@@ -91,7 +94,64 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 			return _apply_saved_view(params)
 		"get_render_time":
 			return _get_render_time()
+		"set_shell_visible":
+			return _set_shell_visible(params)
+		"set_shell_param":
+			return _set_shell_param(params)
 	return {"_error": {"code": ERR_UNKNOWN_METHOD, "message": "Unknown method: %s" % method}}
+
+
+# Show or hide one IVShellsModel shell of a body ({"name", "shell", "visible"}), so a
+# rendered pixel can be decomposed into the shells that built it. Shell 0 is the surface
+# and the orchestrator; 1..N are its child shells (a cloud deck, an atmosphere limb).
+func _set_shell_visible(params: Dictionary) -> Variant:
+	var body: IVBody = IVBody.bodies.get(StringName(String(params.get("name", ""))))
+	if !body:
+		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no body"}}
+	var wanted: int = params.get("shell", 1)
+	var wanted_visible: bool = params.get("visible", true)
+	var found: Array[int] = []
+	var hit := false
+	for node in _find_shells(body):
+		var index: int = node.get(&"_shell")
+		found.append(index)
+		if index == wanted:
+			node.visible = wanted_visible
+			hit = true
+	if not hit:
+		return {"_error": {"code": ERR_DOES_NOT_EXIST,
+				"message": "no shell %d; body has %s" % [wanted, found]}}
+	return {"body": String(body.name), "shell": wanted, "visible": wanted_visible,
+			"shells": found}
+
+
+func _set_shell_param(params: Dictionary) -> Variant:
+	var body: IVBody = IVBody.bodies.get(StringName(String(params.get("name", ""))))
+	if !body:
+		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no body"}}
+	var wanted: int = params.get("shell", 1)
+	var param := StringName(String(params.get("param", "")))
+	var value: Variant = params.get("value")
+	for node in _find_shells(body):
+		if node.get(&"_shell") != wanted:
+			continue
+		var geometry := node as GeometryInstance3D
+		var material := geometry.get_surface_override_material(0) as ShaderMaterial
+		if !material:
+			return {"_error": {"code": ERR_UNAVAILABLE, "message": "shell has no ShaderMaterial"}}
+		material.set_shader_parameter(param, value)
+		return {"shell": wanted, "param": String(param),
+				"read_back": material.get_shader_parameter(param)}
+	return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no shell %d" % wanted}}
+
+
+func _find_shells(node: Node) -> Array[Node]:
+	var out: Array[Node] = []
+	if node is IVShellsModel:
+		out.append(node)
+	for child in node.get_children():
+		out.append_array(_find_shells(child))
+	return out
 
 
 func _get_render_time() -> Variant:
