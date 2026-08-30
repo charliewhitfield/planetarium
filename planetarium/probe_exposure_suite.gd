@@ -385,8 +385,8 @@ func _get_photometry() -> Dictionary:
 		"limb_meter_edge_fraction": manager.limb_meter_edge_fraction,
 		"meter_edge_fraction": manager.meter_edge_fraction,
 		"ambient_starlight_illuminance": manager.ambient_starlight_illuminance,
-		"mag0_illuminance": IVAstronomy.MAG0_ILLUMINANCE,
-		"sb0_luminance": IVAstronomy.SB0_LUMINANCE,
+		"mag0_illuminance": IVPhotometry.MAG0_ILLUMINANCE,
+		"sb0_luminance": IVPhotometry.SB0_LUMINANCE,
 		"gain": IVExposureManager.gain,
 		"sky_energy": IVExposureManager.sky_energy,
 	}
@@ -442,7 +442,7 @@ func _get_metering_table() -> Dictionary:
 					manager.star_meter_fraction_start, manager.star_meter_fraction_full)
 			if star_weight <= 0.0:
 				continue
-			var disc_luminance := IVAstronomy.get_star_disc_luminance(
+			var disc_luminance := IVPhotometry.get_star_disc_luminance(
 					star_absolute_magnitude, body.mean_radius)
 			rows.append({
 				"name": String(body_name), "candidate": "star",
@@ -471,9 +471,9 @@ func _get_metering_table() -> Dictionary:
 			var albedo_value: float = albedo_var
 			if albedo_value > 0.0: # empty cell imports non-positive; mirror manager
 				albedo = albedo_value
-		var apparent_magnitude := IVAstronomy.get_apparent_magnitude(
+		var apparent_magnitude := IVPhotometry.get_apparent_magnitude(
 				star_absolute_magnitude, star_distance)
-		var illuminance := IVAstronomy.get_illuminance_from_apparent_magnitude(
+		var illuminance := IVPhotometry.get_illuminance_from_apparent_magnitude(
 				apparent_magnitude)
 		var lit_luminance := albedo * (illuminance
 				+ manager.ambient_starlight_illuminance) / PI
@@ -790,8 +790,8 @@ func _parent_shadow_fraction(body: IVBody, star: IVBody) -> float:
 	var parent_angular_radius := parent.mean_radius / parent_distance
 	var cos_separation := star_vector.dot(parent_vector) / (star_distance * parent_distance)
 	var separation := acos(clampf(cos_separation, -1.0, 1.0))
-	return IVAstronomy.get_two_disc_visible_fraction(star_angular_radius, parent_angular_radius,
-			separation)
+	return IVSunOcclusionManager.get_two_disc_visible_fraction(star_angular_radius,
+			parent_angular_radius, separation)
 
 
 # Per-sample breakdown of the limb ring for one body: what each azimuth sample's solar
