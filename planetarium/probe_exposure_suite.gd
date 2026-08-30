@@ -279,6 +279,7 @@ func _get_body_debug(params: Dictionary) -> Variant:
 		"view_size": [view_size.x, view_size.y],
 		"flags": body.flags,
 		"albedo_characteristic": body.characteristics.get(&"albedo"),
+		"meter_albedo_characteristic": body.characteristics.get(&"meter_albedo"),
 		"child_count": body.get_child_count(),
 	}
 
@@ -466,11 +467,16 @@ func _get_metering_table() -> Dictionary:
 				lit_visible_cutoff, phase_angle)
 		lit_visible = clampf(lit_visible * horizon_factor, 0.0, 1.0)
 		var albedo := manager.default_albedo
-		var albedo_var: Variant = body.characteristics.get(&"albedo")
-		if typeof(albedo_var) == TYPE_FLOAT:
+		# meter_albedo ahead of albedo, mirroring IVExposureManager._get_albedo(); this
+		# table is a second copy of that math and reports the old number without it.
+		for field: StringName in [&"meter_albedo", &"albedo"]:
+			var albedo_var: Variant = body.characteristics.get(field)
+			if typeof(albedo_var) != TYPE_FLOAT:
+				continue
 			var albedo_value: float = albedo_var
 			if albedo_value > 0.0: # empty cell imports non-positive; mirror manager
 				albedo = albedo_value
+				break
 		var apparent_magnitude := IVPhotometry.get_apparent_magnitude(
 				star_absolute_magnitude, star_distance)
 		var illuminance := IVPhotometry.get_illuminance_from_apparent_magnitude(
