@@ -1,12 +1,46 @@
 # probe_exposure_suite.gd
-# TEMPORARY verification harness for the physical-light feature. Registered via
-# the untracked res://ivoyager_override2.cfg [assistant_test_suites] section;
-# neither file is committed. DELETE BOTH at feature completion.
+# This file is part of I, Voyager
+# https://ivoyager.dev
+# *****************************************************************************
+# Copyright 2019-2026 Charlie Whitfield
+# I, Voyager is a registered trademark of Charlie Whitfield in the US
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# *****************************************************************************
 extends IVAssistantTestSuite
 
-## Exposes IVExposureManager state, derived photometry, and scene values the
-## manager drives, so assistant-driven tests can assert the physical-light
-## chain numerically and verify runtime-toggle restoration.
+## Assistant API for measuring the physical-light chain in a running simulator.
+##
+## Reports [IVExposureManager] state, derived photometry and the per-body metering
+## table, and drives the levers a photometric investigation needs: a shell's visibility
+## and its shader parameters, a body's exposure ceilings, the limb ring's per-sample
+## breakdown, and the engine's own unprojection of a limb circle.[br][br]
+##
+## A measuring instrument rather than a test -- nothing here asserts. Its callers are
+## Python drivers in the private assets build tree, reached over the
+## [code]ivoyager_assistant[/code] TCP server, and what they measure is written up there
+## and in [code]addons/ivoyager_core/PHOTOMETRIC_MODEL.md[/code]. That document's TODO
+## list is the standing reason this suite is here.[br][br]
+##
+## Register it in [code]ivoyager_override2.cfg[/code] under
+## [code][assistant_test_suites][/code]. It reads private members of
+## [IVExposureManager] and [IVShellsModel] -- deliberately, since a probe exists to
+## reach what the public API does not expose, but a rename in Core breaks it here and
+## nothing else will report it.[br][br]
+##
+## It lives in this project because the work driving it does, not because it is
+## Planetarium-specific. Whether to code it for general use is open -- another project
+## needing an asset pipeline would want this rather than its own copy.
 
 
 var _lights: Array[IVDynamicLight] = []
@@ -105,18 +139,19 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 # rendered pixel can be decomposed into the shells that built it. Shell 0 is the surface
 # and the orchestrator; 1..N are its child shells (a cloud deck, an atmosphere limb).
 func _set_shell_visible(params: Dictionary) -> Variant:
-	var body: IVBody = IVBody.bodies.get(StringName(String(params.get("name", ""))))
+	var name_string: String = params.get("name", "")
+	var body: IVBody = IVBody.bodies.get(StringName(name_string))
 	if !body:
 		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no body"}}
 	var wanted: int = params.get("shell", 1)
 	var wanted_visible: bool = params.get("visible", true)
 	var found: Array[int] = []
 	var hit := false
-	for node in _find_shells(body):
-		var index: int = node.get(&"_shell")
+	for shell in _find_shells(body):
+		var index := shell._shell
 		found.append(index)
 		if index == wanted:
-			node.visible = wanted_visible
+			shell.visible = wanted_visible
 			hit = true
 	if not hit:
 		return {"_error": {"code": ERR_DOES_NOT_EXIST,
@@ -126,29 +161,32 @@ func _set_shell_visible(params: Dictionary) -> Variant:
 
 
 func _set_shell_param(params: Dictionary) -> Variant:
-	var body: IVBody = IVBody.bodies.get(StringName(String(params.get("name", ""))))
+	var name_string: String = params.get("name", "")
+	var body: IVBody = IVBody.bodies.get(StringName(name_string))
 	if !body:
 		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no body"}}
 	var wanted: int = params.get("shell", 1)
-	var param := StringName(String(params.get("param", "")))
+	var param_string: String = params.get("param", "")
+	var param := StringName(param_string)
 	var value: Variant = params.get("value")
-	for node in _find_shells(body):
-		if node.get(&"_shell") != wanted:
+	for shell in _find_shells(body):
+		if shell._shell != wanted:
 			continue
-		var geometry := node as GeometryInstance3D
-		var material := geometry.get_surface_override_material(0) as ShaderMaterial
+		var material := shell.get_surface_override_material(0) as ShaderMaterial
 		if !material:
 			return {"_error": {"code": ERR_UNAVAILABLE, "message": "shell has no ShaderMaterial"}}
 		material.set_shader_parameter(param, value)
-		return {"shell": wanted, "param": String(param),
+		return {"shell": wanted, "param": param_string,
 				"read_back": material.get_shader_parameter(param)}
 	return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no shell %d" % wanted}}
 
 
-func _find_shells(node: Node) -> Array[Node]:
-	var out: Array[Node] = []
-	if node is IVShellsModel:
-		out.append(node)
+# Callers read IVShellsModel._shell, a private member -- a rename in Core breaks them here.
+func _find_shells(node: Node) -> Array[IVShellsModel]:
+	var out: Array[IVShellsModel] = []
+	var shell := node as IVShellsModel
+	if shell:
+		out.append(shell)
 	for child in node.get_children():
 		out.append_array(_find_shells(child))
 	return out
