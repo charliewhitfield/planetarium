@@ -65,7 +65,7 @@ func get_method_names() -> Array[String]:
 			"poke_sky_radiance", "get_shadow_receivers", "set_exposure_ceiling",
 			"get_limb_samples", "set_limb_meter",
 			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time",
-			"set_shell_visible", "set_shell_param"]
+			"set_shell_visible", "set_shell_param", "set_glow", "set_star_settings"]
 
 
 func get_method_summaries() -> Dictionary:
@@ -88,6 +88,8 @@ func get_method_summaries() -> Dictionary:
 		"get_limb_samples": "Per-sample breakdown of one body's limb ring ({\"name\": entity_name}).",
 		"set_shell_param": "Set one shader parameter on one shell's material ({\"name\": entity_name, \"shell\": int, \"param\": String, \"value\": float}); sweeps a candidate in ONE app run instead of one run per value.",
 		"set_shell_visible": "Show or hide one IVShellsModel shell ({\"name\": entity_name, \"shell\": int, \"visible\": bool}); shell 0 is the surface, 1..N its overlays. Decomposes a rendered pixel into the shells that built it.",
+		"set_star_settings": "Set IVStarSettings values at runtime ({\"psf_sigma\": float, \"intensity_scale\": float, \"intensity_gamma\": float, \"intensity_faint_mag\": float, \"color_saturation\": float, \"fov_compensation\": float, \"glare_scale\": float, \"glare_gamma\": float, \"glare_max_px\": float}; omit a key to keep it). One object feeds the catalog field, the far sun's point and its glare quad, so a sweep moves all three together. Reports every value back.",
+		"set_glow": "Set Environment glow properties at runtime ({\"enabled\": bool, \"intensity\": float, \"strength\": float, \"bloom\": float, \"hdr_threshold\": float, \"hdr_scale\": float, \"hdr_luminance_cap\": float, \"blend_mode\": int, \"levels\": [float x 7]}; omit a key to keep it). Reports every glow property back, so a sweep records the state it measured.",
 		"set_exposure_ceiling": "Override a body's shells.tsv exposure_ceiling / limb_exposure_ceiling cells at runtime ({\"name\": entity_name, \"ceiling\": float, \"limb_only\": bool}); 0.0 removes them.",
 	}
 
@@ -130,6 +132,10 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 			return _get_render_time()
 		"set_shell_visible":
 			return _set_shell_visible(params)
+		"set_glow":
+			return _set_glow(params)
+		"set_star_settings":
+			return _set_star_settings(params)
 		"set_shell_param":
 			return _set_shell_param(params)
 	return {"_error": {"code": ERR_UNKNOWN_METHOD, "message": "Unknown method: %s" % method}}
@@ -1033,3 +1039,91 @@ func _set_limb_meter(params: Dictionary) -> Variant:
 		"limb_meter_fraction_full": manager.limb_meter_fraction_full,
 		"limb_meter_edge_fraction": manager.limb_meter_edge_fraction,
 	}
+
+
+func _set_glow(params: Dictionary) -> Variant:
+	if !_world_environment or !_world_environment.environment:
+		return {"_error": {"code": ERR_UNAVAILABLE, "message": "No WorldEnvironment"}}
+	var environment := _world_environment.environment
+	var enabled_var: Variant = params.get("enabled")
+	if enabled_var != null:
+		if typeof(enabled_var) != TYPE_BOOL:
+			return {"_error": {"code": ERR_INVALID_PARAMS, "message": "'enabled' must be a bool"}}
+		environment.glow_enabled = enabled_var
+	var floats: Dictionary[String, StringName] = {
+		"intensity": &"glow_intensity",
+		"strength": &"glow_strength",
+		"bloom": &"glow_bloom",
+		"mix": &"glow_mix",
+		"hdr_threshold": &"glow_hdr_threshold",
+		"hdr_scale": &"glow_hdr_scale",
+		"hdr_luminance_cap": &"glow_hdr_luminance_cap",
+	}
+	for key: String in floats:
+		var value_var: Variant = params.get(key)
+		if value_var == null:
+			continue
+		if typeof(value_var) != TYPE_FLOAT and typeof(value_var) != TYPE_INT:
+			return {"_error": {"code": ERR_INVALID_PARAMS,
+					"message": "'%s' must be a number" % key}}
+		var value: float = value_var
+		environment.set(floats[key], value)
+	var blend_var: Variant = params.get("blend_mode")
+	if blend_var != null:
+		if typeof(blend_var) != TYPE_INT:
+			return {"_error": {"code": ERR_INVALID_PARAMS, "message": "'blend_mode' must be an int"}}
+		environment.glow_blend_mode = blend_var
+	var levels_var: Variant = params.get("levels")
+	if levels_var != null:
+		if typeof(levels_var) != TYPE_ARRAY:
+			return {"_error": {"code": ERR_INVALID_PARAMS,
+					"message": "'levels' must be an array of 7 numbers"}}
+		var levels: Array = levels_var
+		if levels.size() != 7:
+			return {"_error": {"code": ERR_INVALID_PARAMS,
+					"message": "'levels' must have 7 entries"}}
+		for i in 7:
+			var level_var: Variant = levels[i]
+			if typeof(level_var) != TYPE_FLOAT and typeof(level_var) != TYPE_INT:
+				return {"_error": {"code": ERR_INVALID_PARAMS,
+						"message": "'levels' entries must be numbers"}}
+			var level: float = level_var
+			environment.set_glow_level(i + 1, level)
+	var reported_levels := []
+	for i in 7:
+		reported_levels.append(environment.get_glow_level(i + 1))
+	return {
+		"ok": true,
+		"enabled": environment.glow_enabled,
+		"intensity": environment.glow_intensity,
+		"strength": environment.glow_strength,
+		"bloom": environment.glow_bloom,
+		"mix": environment.glow_mix,
+		"hdr_threshold": environment.glow_hdr_threshold,
+		"hdr_scale": environment.glow_hdr_scale,
+		"hdr_luminance_cap": environment.glow_hdr_luminance_cap,
+		"blend_mode": environment.glow_blend_mode,
+		"levels": reported_levels,
+	}
+
+
+func _set_star_settings(params: Dictionary) -> Variant:
+	var star_settings: IVStarSettings = IVGlobal.program.get(&"StarSettings")
+	if !star_settings:
+		return {"_error": {"code": ERR_UNAVAILABLE, "message": "No StarSettings"}}
+	var names: Array[StringName] = [&"psf_sigma", &"intensity_faint_mag", &"intensity_gamma",
+			&"intensity_scale", &"color_saturation", &"fov_reference_deg", &"fov_compensation",
+			&"glare_scale", &"glare_gamma", &"glare_max_px"]
+	for name in names:
+		var value_var: Variant = params.get(String(name))
+		if value_var == null:
+			continue
+		if typeof(value_var) != TYPE_FLOAT and typeof(value_var) != TYPE_INT:
+			return {"_error": {"code": ERR_INVALID_PARAMS,
+					"message": "'%s' must be a number" % name}}
+		var value: float = value_var
+		star_settings.set(name, value)
+	var report := {"ok": true}
+	for name in names:
+		report[String(name)] = star_settings.get(name)
+	return report
