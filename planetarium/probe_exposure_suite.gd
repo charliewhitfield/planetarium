@@ -65,7 +65,7 @@ func get_method_names() -> Array[String]:
 			"poke_sky_radiance", "get_shadow_receivers", "set_exposure_ceiling",
 			"get_limb_samples", "set_limb_meter",
 			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time",
-			"set_shell_visible", "set_shell_param", "set_glow", "set_star_settings"]
+			"set_shell_visible", "set_shell_param", "set_glow", "set_psf_settings"]
 
 
 func get_method_summaries() -> Dictionary:
@@ -88,7 +88,7 @@ func get_method_summaries() -> Dictionary:
 		"get_limb_samples": "Per-sample breakdown of one body's limb ring ({\"name\": entity_name}).",
 		"set_shell_param": "Set one shader parameter on one shell's material ({\"name\": entity_name, \"shell\": int, \"param\": String, \"value\": float}); sweeps a candidate in ONE app run instead of one run per value.",
 		"set_shell_visible": "Show or hide one IVShellsModel shell ({\"name\": entity_name, \"shell\": int, \"visible\": bool}); shell 0 is the surface, 1..N its overlays. Decomposes a rendered pixel into the shells that built it.",
-		"set_star_settings": "Set IVStarSettings values at runtime ({\"psf_sigma\": float, \"intensity_scale\": float, \"intensity_gamma\": float, \"intensity_faint_mag\": float, \"color_saturation\": float, \"fov_compensation\": float, \"glare_scale\": float, \"glare_gamma\": float, \"glare_max_px\": float}; omit a key to keep it). One object feeds the catalog field, the far sun's point and its glare quad, so a sweep moves all three together. Reports every value back.",
+		"set_psf_settings": "Set IVPSFSettings values at runtime ({\"psf_sigma\": float, \"intensity_scale\": float, \"intensity_gamma\": float, \"intensity_faint_mag\": float, \"color_saturation\": float, \"fov_compensation\": float, \"glare_scale\": float, \"glare_gamma\": float, \"glare_max_px\": float}; omit a key to keep it). One object feeds the catalog field and every body's PSF quad, so a sweep moves them together. Reports every value back.",
 		"set_glow": "Set Environment glow properties at runtime ({\"enabled\": bool, \"intensity\": float, \"strength\": float, \"bloom\": float, \"hdr_threshold\": float, \"hdr_scale\": float, \"hdr_luminance_cap\": float, \"blend_mode\": int, \"levels\": [float x 7]}; omit a key to keep it). Reports every glow property back, so a sweep records the state it measured.",
 		"set_exposure_ceiling": "Override a body's shells.tsv exposure_ceiling / limb_exposure_ceiling cells at runtime ({\"name\": entity_name, \"ceiling\": float, \"limb_only\": bool}); 0.0 removes them.",
 	}
@@ -134,8 +134,8 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 			return _set_shell_visible(params)
 		"set_glow":
 			return _set_glow(params)
-		"set_star_settings":
-			return _set_star_settings(params)
+		"set_psf_settings":
+			return _set_psf_settings(params)
 		"set_shell_param":
 			return _set_shell_param(params)
 	return {"_error": {"code": ERR_UNKNOWN_METHOD, "message": "Unknown method: %s" % method}}
@@ -1107,10 +1107,10 @@ func _set_glow(params: Dictionary) -> Variant:
 	}
 
 
-func _set_star_settings(params: Dictionary) -> Variant:
-	var star_settings: IVStarSettings = IVGlobal.program.get(&"StarSettings")
-	if !star_settings:
-		return {"_error": {"code": ERR_UNAVAILABLE, "message": "No StarSettings"}}
+func _set_psf_settings(params: Dictionary) -> Variant:
+	var psf_settings: IVPSFSettings = IVGlobal.program.get(&"PSFSettings")
+	if !psf_settings:
+		return {"_error": {"code": ERR_UNAVAILABLE, "message": "No PSFSettings"}}
 	var names: Array[StringName] = [&"psf_sigma", &"intensity_faint_mag", &"intensity_gamma",
 			&"intensity_scale", &"color_saturation", &"fov_reference_deg", &"fov_compensation",
 			&"glare_scale", &"glare_gamma", &"glare_max_px"]
@@ -1122,8 +1122,8 @@ func _set_star_settings(params: Dictionary) -> Variant:
 			return {"_error": {"code": ERR_INVALID_PARAMS,
 					"message": "'%s' must be a number" % name}}
 		var value: float = value_var
-		star_settings.set(name, value)
+		psf_settings.set(name, value)
 	var report := {"ok": true}
 	for name in names:
-		report[String(name)] = star_settings.get(name)
+		report[String(name)] = psf_settings.get(name)
 	return report
