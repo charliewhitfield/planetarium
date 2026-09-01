@@ -1,13 +1,40 @@
 # dialog_rig_probe_suite.gd
-# TEMPORARY verification harness for IVBody2DCaptureDialog's own render path. Registered
-# via the untracked res://ivoyager_override2.cfg [assistant_test_suites] section; neither
-# file is committed. DELETE BOTH once the 2D icon work is signed off.
+# This file is part of I, Voyager
+# https://ivoyager.dev
+# *****************************************************************************
+# Copyright 2019-2026 Charlie Whitfield
+# I, Voyager is a registered trademark of Charlie Whitfield in the US
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# *****************************************************************************
 extends IVAssistantTestSuite
 
-## Drives IVBody2DCapturer through the sequence IVBody2DCaptureDialog uses -- stage on the
-## body's own camera radius, reset pose, solve_fit_zoom, capture_image -- so the dialog-only
-## half of the capturer (the fit and the readback conversion, neither of which the tools
-## icon suite calls) can be rendered and measured headlessly.
+## Assistant API for rendering a body through [IVBody2DCaptureDialog]'s own path.
+##
+## Drives [IVBody2DCapturer] through the sequence the dialog uses -- stage on the body's
+## own camera radius, reset pose, [code]solve_fit_zoom[/code], [code]capture_image[/code]
+## -- so the dialog-only half of the capturer, the fit and the readback conversion, can be
+## measured headlessly. Neither is reached by
+## [code]addons/tools/body_2d_icon_suite.gd[/code], which captures the shipped icons; the
+## two are one rig, and this is what shows they have not drifted apart.[br][br]
+##
+## Register it in [code]ivoyager_override2.cfg[/code] under
+## [code][assistant_test_suites][/code]. Rendering needs frames, so a capture cannot answer
+## within one JSON-RPC call: [code]capture_dialog_icon[/code] starts one and returns
+## immediately, and [code]poll_dialog_icon[/code] returns the result once it lands.[br][br]
+##
+## Companion to [code]planetarium/probe_exposure_suite.gd[/code]; the note there on where
+## these two live, and on coding them for general use, applies here too.
 
 const RIG_SIZE := IVBody2DCapturer.ICON_SIZE * IVBody2DCapturer.SUPERSAMPLE
 

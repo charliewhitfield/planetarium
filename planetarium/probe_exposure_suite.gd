@@ -1,12 +1,46 @@
 # probe_exposure_suite.gd
-# TEMPORARY verification harness for the physical-light feature. Registered via
-# the untracked res://ivoyager_override2.cfg [assistant_test_suites] section;
-# neither file is committed. DELETE BOTH at feature completion.
+# This file is part of I, Voyager
+# https://ivoyager.dev
+# *****************************************************************************
+# Copyright 2019-2026 Charlie Whitfield
+# I, Voyager is a registered trademark of Charlie Whitfield in the US
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# *****************************************************************************
 extends IVAssistantTestSuite
 
-## Exposes IVExposureManager state, derived photometry, and scene values the
-## manager drives, so assistant-driven tests can assert the physical-light
-## chain numerically and verify runtime-toggle restoration.
+## Assistant API for measuring the physical-light chain in a running simulator.
+##
+## Reports [IVExposureManager] state, derived photometry and the per-body metering
+## table, and drives the levers a photometric investigation needs: a shell's visibility
+## and its shader parameters, a body's exposure ceilings, the limb ring's per-sample
+## breakdown, and the engine's own unprojection of a limb circle.[br][br]
+##
+## A measuring instrument rather than a test -- nothing here asserts. Its callers are
+## Python drivers in the private assets build tree, reached over the
+## [code]ivoyager_assistant[/code] TCP server, and what they measure is written up there
+## and in [code]addons/ivoyager_core/PHOTOMETRIC_MODEL.md[/code]. That document's TODO
+## list is the standing reason this suite is here.[br][br]
+##
+## Register it in [code]ivoyager_override2.cfg[/code] under
+## [code][assistant_test_suites][/code]. It reads private members of
+## [IVExposureManager] and [IVShellsModel] -- deliberately, since a probe exists to
+## reach what the public API does not expose, but a rename in Core breaks it here and
+## nothing else will report it.[br][br]
+##
+## It lives in this project because the work driving it does, not because it is
+## Planetarium-specific. Whether to code it for general use is open -- another project
+## needing an asset pipeline would want this rather than its own copy.
 
 
 var _lights: Array[IVDynamicLight] = []
@@ -30,7 +64,8 @@ func get_method_names() -> Array[String]:
 			"get_body_debug", "set_ambient_energy", "set_reflected_light", "list_lights",
 			"poke_sky_radiance", "get_shadow_receivers", "set_exposure_ceiling",
 			"get_limb_samples", "set_limb_meter",
-			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time"]
+			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time",
+			"set_shell_visible", "set_shell_param", "set_glow", "set_psf_settings"]
 
 
 func get_method_summaries() -> Dictionary:
@@ -51,6 +86,10 @@ func get_method_summaries() -> Dictionary:
 		"get_render_time": "Last frame's measured viewport render times ({}); enables measurement on first call, so poll and average.",
 		"project_limb_circle": "Screen positions of a body's silhouette circle at a given altitude ({\"name\": entity_name, \"altitude_km\": float, \"samples\": int}); the projection is the engine's own, so it holds off axis, where a sphere's silhouette is an ellipse and a circle fit is meaningless.",
 		"get_limb_samples": "Per-sample breakdown of one body's limb ring ({\"name\": entity_name}).",
+		"set_shell_param": "Set one shader parameter on one shell's material ({\"name\": entity_name, \"shell\": int, \"param\": String, \"value\": float}); sweeps a candidate in ONE app run instead of one run per value.",
+		"set_shell_visible": "Show or hide one IVShellsModel shell ({\"name\": entity_name, \"shell\": int, \"visible\": bool}); shell 0 is the surface, 1..N its overlays. Decomposes a rendered pixel into the shells that built it.",
+		"set_psf_settings": "Set IVPSFSettings values at runtime ({\"psf_sigma\": float, \"intensity_scale\": float, \"intensity_gamma\": float, \"intensity_faint_mag\": float, \"color_saturation\": float, \"fov_compensation\": float, \"glare_scale\": float, \"glare_gamma\": float, \"glare_max_px\": float}; omit a key to keep it). One object feeds the catalog field and every body's PSF quad, so a sweep moves them together. Reports every value back.",
+		"set_glow": "Set Environment glow properties at runtime ({\"enabled\": bool, \"intensity\": float, \"strength\": float, \"bloom\": float, \"hdr_threshold\": float, \"hdr_scale\": float, \"hdr_luminance_cap\": float, \"blend_mode\": int, \"levels\": [float x 7]}; omit a key to keep it). Reports every glow property back, so a sweep records the state it measured.",
 		"set_exposure_ceiling": "Override a body's shells.tsv exposure_ceiling / limb_exposure_ceiling cells at runtime ({\"name\": entity_name, \"ceiling\": float, \"limb_only\": bool}); 0.0 removes them.",
 	}
 
@@ -91,7 +130,72 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 			return _apply_saved_view(params)
 		"get_render_time":
 			return _get_render_time()
+		"set_shell_visible":
+			return _set_shell_visible(params)
+		"set_glow":
+			return _set_glow(params)
+		"set_psf_settings":
+			return _set_psf_settings(params)
+		"set_shell_param":
+			return _set_shell_param(params)
 	return {"_error": {"code": ERR_UNKNOWN_METHOD, "message": "Unknown method: %s" % method}}
+
+
+# Show or hide one IVShellsModel shell of a body ({"name", "shell", "visible"}), so a
+# rendered pixel can be decomposed into the shells that built it. Shell 0 is the surface
+# and the orchestrator; 1..N are its child shells (a cloud deck, an atmosphere limb).
+func _set_shell_visible(params: Dictionary) -> Variant:
+	var name_string: String = params.get("name", "")
+	var body: IVBody = IVBody.bodies.get(StringName(name_string))
+	if !body:
+		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no body"}}
+	var wanted: int = params.get("shell", 1)
+	var wanted_visible: bool = params.get("visible", true)
+	var found: Array[int] = []
+	var hit := false
+	for shell in _find_shells(body):
+		var index := shell._shell
+		found.append(index)
+		if index == wanted:
+			shell.visible = wanted_visible
+			hit = true
+	if not hit:
+		return {"_error": {"code": ERR_DOES_NOT_EXIST,
+				"message": "no shell %d; body has %s" % [wanted, found]}}
+	return {"body": String(body.name), "shell": wanted, "visible": wanted_visible,
+			"shells": found}
+
+
+func _set_shell_param(params: Dictionary) -> Variant:
+	var name_string: String = params.get("name", "")
+	var body: IVBody = IVBody.bodies.get(StringName(name_string))
+	if !body:
+		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no body"}}
+	var wanted: int = params.get("shell", 1)
+	var param_string: String = params.get("param", "")
+	var param := StringName(param_string)
+	var value: Variant = params.get("value")
+	for shell in _find_shells(body):
+		if shell._shell != wanted:
+			continue
+		var material := shell.get_surface_override_material(0) as ShaderMaterial
+		if !material:
+			return {"_error": {"code": ERR_UNAVAILABLE, "message": "shell has no ShaderMaterial"}}
+		material.set_shader_parameter(param, value)
+		return {"shell": wanted, "param": param_string,
+				"read_back": material.get_shader_parameter(param)}
+	return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no shell %d" % wanted}}
+
+
+# Callers read IVShellsModel._shell, a private member -- a rename in Core breaks them here.
+func _find_shells(node: Node) -> Array[IVShellsModel]:
+	var out: Array[IVShellsModel] = []
+	var shell := node as IVShellsModel
+	if shell:
+		out.append(shell)
+	for child in node.get_children():
+		out.append_array(_find_shells(child))
+	return out
 
 
 func _get_render_time() -> Variant:
@@ -219,6 +323,7 @@ func _get_body_debug(params: Dictionary) -> Variant:
 		"view_size": [view_size.x, view_size.y],
 		"flags": body.flags,
 		"albedo_characteristic": body.characteristics.get(&"albedo"),
+		"meter_albedo_characteristic": body.characteristics.get(&"meter_albedo"),
 		"child_count": body.get_child_count(),
 	}
 
@@ -325,8 +430,8 @@ func _get_photometry() -> Dictionary:
 		"limb_meter_edge_fraction": manager.limb_meter_edge_fraction,
 		"meter_edge_fraction": manager.meter_edge_fraction,
 		"ambient_starlight_illuminance": manager.ambient_starlight_illuminance,
-		"mag0_illuminance": IVAstronomy.MAG0_ILLUMINANCE,
-		"sb0_luminance": IVAstronomy.SB0_LUMINANCE,
+		"mag0_illuminance": IVPhotometry.MAG0_ILLUMINANCE,
+		"sb0_luminance": IVPhotometry.SB0_LUMINANCE,
 		"gain": IVExposureManager.gain,
 		"sky_energy": IVExposureManager.sky_energy,
 	}
@@ -382,7 +487,7 @@ func _get_metering_table() -> Dictionary:
 					manager.star_meter_fraction_start, manager.star_meter_fraction_full)
 			if star_weight <= 0.0:
 				continue
-			var disc_luminance := IVAstronomy.get_star_disc_luminance(
+			var disc_luminance := IVPhotometry.get_star_disc_luminance(
 					star_absolute_magnitude, body.mean_radius)
 			rows.append({
 				"name": String(body_name), "candidate": "star",
@@ -406,14 +511,19 @@ func _get_metering_table() -> Dictionary:
 				lit_visible_cutoff, phase_angle)
 		lit_visible = clampf(lit_visible * horizon_factor, 0.0, 1.0)
 		var albedo := manager.default_albedo
-		var albedo_var: Variant = body.characteristics.get(&"albedo")
-		if typeof(albedo_var) == TYPE_FLOAT:
+		# meter_albedo ahead of albedo, mirroring IVExposureManager._get_albedo(); this
+		# table is a second copy of that math and reports the old number without it.
+		for field: StringName in [&"meter_albedo", &"albedo"]:
+			var albedo_var: Variant = body.characteristics.get(field)
+			if typeof(albedo_var) != TYPE_FLOAT:
+				continue
 			var albedo_value: float = albedo_var
 			if albedo_value > 0.0: # empty cell imports non-positive; mirror manager
 				albedo = albedo_value
-		var apparent_magnitude := IVAstronomy.get_apparent_magnitude(
+				break
+		var apparent_magnitude := IVPhotometry.get_apparent_magnitude(
 				star_absolute_magnitude, star_distance)
-		var illuminance := IVAstronomy.get_illuminance_from_apparent_magnitude(
+		var illuminance := IVPhotometry.get_illuminance_from_apparent_magnitude(
 				apparent_magnitude)
 		var lit_luminance := albedo * (illuminance
 				+ manager.ambient_starlight_illuminance) / PI
@@ -730,8 +840,8 @@ func _parent_shadow_fraction(body: IVBody, star: IVBody) -> float:
 	var parent_angular_radius := parent.mean_radius / parent_distance
 	var cos_separation := star_vector.dot(parent_vector) / (star_distance * parent_distance)
 	var separation := acos(clampf(cos_separation, -1.0, 1.0))
-	return IVAstronomy.get_two_disc_visible_fraction(star_angular_radius, parent_angular_radius,
-			separation)
+	return IVSunOcclusionManager.get_two_disc_visible_fraction(star_angular_radius,
+			parent_angular_radius, separation)
 
 
 # Per-sample breakdown of the limb ring for one body: what each azimuth sample's solar
@@ -929,3 +1039,91 @@ func _set_limb_meter(params: Dictionary) -> Variant:
 		"limb_meter_fraction_full": manager.limb_meter_fraction_full,
 		"limb_meter_edge_fraction": manager.limb_meter_edge_fraction,
 	}
+
+
+func _set_glow(params: Dictionary) -> Variant:
+	if !_world_environment or !_world_environment.environment:
+		return {"_error": {"code": ERR_UNAVAILABLE, "message": "No WorldEnvironment"}}
+	var environment := _world_environment.environment
+	var enabled_var: Variant = params.get("enabled")
+	if enabled_var != null:
+		if typeof(enabled_var) != TYPE_BOOL:
+			return {"_error": {"code": ERR_INVALID_PARAMS, "message": "'enabled' must be a bool"}}
+		environment.glow_enabled = enabled_var
+	var floats: Dictionary[String, StringName] = {
+		"intensity": &"glow_intensity",
+		"strength": &"glow_strength",
+		"bloom": &"glow_bloom",
+		"mix": &"glow_mix",
+		"hdr_threshold": &"glow_hdr_threshold",
+		"hdr_scale": &"glow_hdr_scale",
+		"hdr_luminance_cap": &"glow_hdr_luminance_cap",
+	}
+	for key: String in floats:
+		var value_var: Variant = params.get(key)
+		if value_var == null:
+			continue
+		if typeof(value_var) != TYPE_FLOAT and typeof(value_var) != TYPE_INT:
+			return {"_error": {"code": ERR_INVALID_PARAMS,
+					"message": "'%s' must be a number" % key}}
+		var value: float = value_var
+		environment.set(floats[key], value)
+	var blend_var: Variant = params.get("blend_mode")
+	if blend_var != null:
+		if typeof(blend_var) != TYPE_INT:
+			return {"_error": {"code": ERR_INVALID_PARAMS, "message": "'blend_mode' must be an int"}}
+		environment.glow_blend_mode = blend_var
+	var levels_var: Variant = params.get("levels")
+	if levels_var != null:
+		if typeof(levels_var) != TYPE_ARRAY:
+			return {"_error": {"code": ERR_INVALID_PARAMS,
+					"message": "'levels' must be an array of 7 numbers"}}
+		var levels: Array = levels_var
+		if levels.size() != 7:
+			return {"_error": {"code": ERR_INVALID_PARAMS,
+					"message": "'levels' must have 7 entries"}}
+		for i in 7:
+			var level_var: Variant = levels[i]
+			if typeof(level_var) != TYPE_FLOAT and typeof(level_var) != TYPE_INT:
+				return {"_error": {"code": ERR_INVALID_PARAMS,
+						"message": "'levels' entries must be numbers"}}
+			var level: float = level_var
+			environment.set_glow_level(i + 1, level)
+	var reported_levels := []
+	for i in 7:
+		reported_levels.append(environment.get_glow_level(i + 1))
+	return {
+		"ok": true,
+		"enabled": environment.glow_enabled,
+		"intensity": environment.glow_intensity,
+		"strength": environment.glow_strength,
+		"bloom": environment.glow_bloom,
+		"mix": environment.glow_mix,
+		"hdr_threshold": environment.glow_hdr_threshold,
+		"hdr_scale": environment.glow_hdr_scale,
+		"hdr_luminance_cap": environment.glow_hdr_luminance_cap,
+		"blend_mode": environment.glow_blend_mode,
+		"levels": reported_levels,
+	}
+
+
+func _set_psf_settings(params: Dictionary) -> Variant:
+	var psf_settings: IVPSFSettings = IVGlobal.program.get(&"PSFSettings")
+	if !psf_settings:
+		return {"_error": {"code": ERR_UNAVAILABLE, "message": "No PSFSettings"}}
+	var names: Array[StringName] = [&"psf_sigma", &"intensity_faint_mag", &"intensity_gamma",
+			&"intensity_scale", &"color_saturation", &"fov_reference_deg", &"fov_compensation",
+			&"glare_scale", &"glare_gamma", &"glare_max_px"]
+	for name in names:
+		var value_var: Variant = params.get(String(name))
+		if value_var == null:
+			continue
+		if typeof(value_var) != TYPE_FLOAT and typeof(value_var) != TYPE_INT:
+			return {"_error": {"code": ERR_INVALID_PARAMS,
+					"message": "'%s' must be a number" % name}}
+		var value: float = value_var
+		psf_settings.set(name, value)
+	var report := {"ok": true}
+	for name in names:
+		report[String(name)] = psf_settings.get(name)
+	return report
