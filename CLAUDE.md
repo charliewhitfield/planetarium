@@ -36,6 +36,24 @@ All GDScript code should compile with **zero warnings**. Apply these strategies:
 
 ## Architecture
 
+### Design documents
+
+Three documents in `addons/ivoyager_core/` describe the simulation at the level of logic and
+invariants, each with its own TODO list. Read the relevant one before changing that subsystem:
+
+- `PHYSICAL_MODEL.md` — the objective simulation: bodies, orbits as an element coordinate
+  system, trajectories, rotation, time, units and scale, small-body groups, the persisted
+  state and what a multiplayer sync would need.
+- `VISUAL_MODEL.md` — how that double-precision truth renders through a float32 pipeline:
+  parenting, origin shifting, farwarp, the shadow systems, culling, orbit lines, point fields,
+  mouse picking.
+- `PHOTOMETRIC_MODEL.md` — physically calibrated light: the calibration chain, the
+  compensating camera, surfaces, atmospheres, rings, stars, renderer parity.
+
+`IVBody_REDESIGN_v0.3.md` at this repo's root is the living plan for the IVBody rework. It is
+not in the submodule, so `PHYSICAL_MODEL.md` links to it by its GitHub URL; when the redesign
+lands and that file goes away, remove those links.
+
 ### Plugin System (Git Submodules)
 
 The core simulation lives in three plugins under `addons/`, each a git submodule:
