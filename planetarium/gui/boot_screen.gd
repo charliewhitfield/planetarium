@@ -20,8 +20,29 @@
 class_name BootScreen
 extends ColorRect
 
-## Self-freeing boot screen hides messy node construction.
+## Self-freeing boot screen hides messy node construction and reports the shader
+## warm-up while it runs.
+
+const WARMUP_TEXT := "Compiling shaders (%d of %d)..."
+const WARMUP_NOTE := "Only the first run after an update needs this."
+
+@onready var _label: Label = $BootLabel
 
 
 func _ready() -> void:
-	IVStateManager.simulator_started.connect(queue_free)
+	IVStateManager.about_to_build_system_tree.connect(_on_about_to_build_system_tree)
+
+
+func _on_about_to_build_system_tree(_is_new_game: bool) -> void:
+	# Program nodes exist by now. With a shader warm-up registered the screen
+	# stays up until it finishes, which is after the simulator starts.
+	var warmup: IVShaderWarmup = IVGlobal.program.get(&"ShaderWarmup")
+	if warmup:
+		warmup.progress_changed.connect(_on_warmup_progress)
+		warmup.finished.connect(queue_free)
+	else:
+		IVStateManager.simulator_started.connect(queue_free)
+
+
+func _on_warmup_progress(index: int, count: int, _shader_name: StringName) -> void:
+	_label.text = WARMUP_TEXT % [index + 1, count] + "\n" + WARMUP_NOTE

@@ -74,6 +74,7 @@ func _init() -> void:
 	IVCoreInitializer.program_nodes["FullScreenManager"] = IVFullScreenManager
 	IVCoreInitializer.program_refcounteds["WikiManager"] = IVWikiManager
 	IVCoreInitializer.program_nodes["ViewCacher"] = ViewCacher
+	IVCoreInitializer.program_nodes["ShaderWarmup"] = IVShaderWarmup
 	
 	# other singleton changes
 	IVQFormat.exponent_str = " ×10^"
