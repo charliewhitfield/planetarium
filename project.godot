@@ -180,6 +180,10 @@ iv_exposure={
 "type": "float",
 "value": 1.0
 }
+iv_psf_sigma={
+"type": "float",
+"value": 0.5
+}
 iv_emission_energy_scale={
 "type": "float",
 "value": 1.0

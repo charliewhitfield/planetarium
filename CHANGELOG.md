@@ -13,6 +13,7 @@ Under development using Godot 4.7.2.
 
 ### Added
 * Added IVBody_REDESIGN_v0.3.md planning doc.
+* Added SHADER_COMPILE_COST.md: what each shader costs the GPU driver to compile, why the Compatibility renderer (and so the web export) pays 8x what Forward+ does, and what editing a given `.gdshaderinc` costs in recompiles.
 * Added the Core plugin's new `IVExposureControl` widget to the control panel.
 * Enabled the Core plugin's new physical-light system (`IVCoreSettings.enable_physical_light`): physically calibrated sunlight, sky and ambient with a software compensating camera. A "Physical Light" row appears in Options (default on).
 

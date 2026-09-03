@@ -18,6 +18,13 @@ Open in Godot Editor and press Play. No external build system — Godot handles 
 
 There is no test framework or linter beyond Godot's built-in GDScript warnings.
 
+**Shader compile time is the dominant first-run cost on the Compatibility renderer, and so in
+the web export** — 10-26 s per body shader against 1-2 s on Forward+, which shows up as a slow
+start and a multi-second hang the first time the camera reaches a body. `SHADER_COMPILE_COST.md`
+carries the per-shader measurements, what actually drives them (the heavy procedural includes,
+not source length), what editing a given `.gdshaderinc` costs in recompiles, where the two
+shader caches live, and how to measure it again.
+
 ### GDScript Warning Preferences
 
 All GDScript code should compile with **zero warnings**. Apply these strategies:
