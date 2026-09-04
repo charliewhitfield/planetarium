@@ -13,19 +13,22 @@ Open in Godot Editor and press Play. No external build system — Godot handles 
 **First-time setup:** Clone with `--recursive` for submodules. The editor plugin auto-downloads assets (~216 MiB) on first run — press "Download" when prompted.
 
 **Export targets** (defined in `export_presets.cfg`):
-- Web: `export/planetarium-rc.html` (PWA with SharedArrayBuffer threading)
+- Web: `export/planetarium-rc.html` (PWA, single-threaded). `variant/thread_support` is off and
+  stays off: SharedArrayBuffer needs cross-origin isolation headers, which is more than we will
+  ask of a host. Don't propose threading as a fix for anything.
 - Windows: `export/Planetarium-v0.1.exe` (x86_64)
 
 There is no test framework or linter beyond Godot's built-in GDScript warnings.
 
 **Shader compile time is the dominant first-run cost on the Compatibility renderer, and so in
-the web export** — a cold start spends roughly 38 s compiling, most of it now behind the boot
-screen via the Core plugin's `IVShaderWarmup`. `addons/ivoyager_core/SHADER_COMPILE_COST.md`
-carries the per-shader measurements, what actually drives them (the GL compiler unrolling
-constant-bound loops, not source length or include weight), what editing a given `.gdshaderinc`
-costs in recompiles, where the two shader caches live, and how to measure it again. Read it
-before touching a shader or hand-unrolling anything. The timing harness it describes lives at
-`C:/godot/shader_compile_harness/`, outside this repo.
+the web export** — a cold start spends anywhere from tens of seconds to a couple of minutes
+compiling, depending on the GPU, nearly all of it now behind the boot screen via the Core
+plugin's `IVShaderWarmup`. `addons/ivoyager_core/SHADER_COMPILE_COST.md` carries the per-shader
+measurements, what actually drives them (the GL compiler unrolling constant-bound loops, not
+source length or include weight), why the Compatibility light configuration is the largest
+remaining lever, what editing a given `.gdshaderinc` costs in recompiles, where the two shader
+caches live, and how to measure it again. Read it before touching a shader or hand-unrolling
+anything. The timing harness is `addons/tools/time_shader_compiles.py`, run from this directory.
 
 ### GDScript Warning Preferences
 
