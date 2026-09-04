@@ -270,6 +270,106 @@ rotation, stroboscope, pointing callables, trajectory segment comparison. The vi
 elements process themselves (§7, §8); a body with no positioner and no lifespan bounds can run
 with processing disabled entirely.
 
+**Under Consideration: camera-relative placement (the world frame follows `IVCamera`).** Step 2
+writes a parent-relative translation into a transform chain carrying astronomical magnitudes.
+The alternative is for the body to be `top_level` and place itself relative to the camera:
+
+```gdscript
+	# 2'. top_level == true; position = absolute_f64(time) - camera_anchor_f64
+```
+
+The scene tree stays the *logical* hierarchy — orbital math, lifecycle, selection, satellite
+indexing, visual children — and stops being the *transform* hierarchy for bodies.
+
+*Why consider anything this drastic.* Opting bodies out of transform inheritance is abnormal
+for Godot and abnormal for us: the hierarchy is load-bearing here, and the f32 error it shares
+down the chain is exactly what makes a close-up precise today. The case for it is that the tree
+is being asked to do two jobs that have quietly diverged. It expresses **what orbits what**,
+which is correct and is not in question. It also **constructs the render frame**, by composing
+those parent-relative locals — and that job it cannot do well, because the composition is f32
+and the locals are astronomical. Two consequences follow that nothing local can undo, because
+the information is gone before it reaches the camera's neighbourhood: the frame is anchored at
+the barycentre, so a body sweeps through world space at its *absolute* speed rather than its
+speed relative to the camera; and the quantum near the top of the chain is ~16 km at 1 au.
+
+Both of VISUAL_MODEL.md's standing defects are that same root. Craft self-shadowing boils
+because Godot anchors its directional-shadow texel lattice in absolute world space while our
+near scene translates 129 m per frame through it (ISS orbital speed over the frame rate; the
+origin shift resolves onto the 16 km lattice and so holds the camera *near* the origin rather
+than *on* it). High-speed render registration loss is the same f32 chain rounding differently
+as huge per-frame motion churns the magnitudes, with only common-mode error cancelling. A
+single f64 subtraction rounded once has no chain to churn and no lattice to sit on, so it
+plausibly subsumes both — worth testing against the second before claiming it.
+
+What makes it *thinkable* rather than merely appealing is that the change surface is one line.
+v0.2 `IVBody` writes its own transform in exactly one place (`body.gd:687`, `position =
+_orbit.update(time)`) and never writes its own basis — every rotation goes to
+`body_visual.basis`. A body is already a pure translation node, which is the condition that
+makes `top_level` structurally free: nothing inherits orientation through it, and visual
+children keep inheriting normally. And the pattern is not new to the codebase —
+`IVBodyPositionVisual` is already `top_level` and placed camera-relatively, and farwarp already
+re-places everything beyond T camera-relatively. This unifies an answer we have twice reached
+for at other ranges.
+
+*What it buys.* Rounding `f64(body − camera)` to f32 leaves an absolute error proportional to
+distance *from the camera* — a constant angular error of ~1.2e-7 rad (0.025") for every object
+at every distance, about 1/6500 of a pixel at the reference view. That is what the
+parenting/shared-error scheme achieves locally, made global and automatic. Note what this does
+to the apparent conflict with parenting: shared error only matters because there *is* large
+error to share, and here there is not, so the mechanism this seems to violate is the one it
+makes unnecessary.
+
+*It is mostly a deletion.* Origin shifting is subsumed — `Universe.position` stays zero and
+`IVCamera.origin_shifting` with its `-=` line is removed. Farwarp improves with it:
+`body.gd:1848` already assembles `farwarp_position` camera-relatively, and VISUAL_MODEL.md
+carries a standing warning never to derive it by differencing large true-scale positions. Here
+`position` *is* the camera-relative vector, so farwarp reduces to scaling it by `g(d)/d` and
+that hazard becomes unrepresentable. The added cost is one top-down f64 pass per frame, keeping
+the sum that is currently discarded at the f32 write.
+
+*`IVPositioner` does not change.* It stays parent-relative (§5) — that is the physical
+abstraction and should not absorb a rendering concern. Only what the body does with the result
+changes.
+
+To resolve before this could be adopted:
+
+- **It sits against a ground rule.** "This design must not bake camera-parenting assumptions
+  into `IVBody`" was written for the sleep rebuild. Camera-relative *placement* is a different
+  coupling from camera *parenting*, but it is still a camera dependency inside `_process`, and
+  the project owner should rule on it explicitly.
+- **Sleep.** A sleeping body's stale placement stays valid today because the tree carries it;
+  camera-relative, stale means visibly lagging a moving camera. Ties directly to the proximity
+  sleep rebuild (§14).
+- **Anchor ordering.** `camera_anchor_f64` must exist before any body is placed. §5's "valid at
+  any [param time]" positioner contract makes that a query at the top of the frame rather than
+  a one-frame lag.
+- **Small-body groups.** GPU-placed by their own scheme; they would need the anchor as a
+  uniform. Unexamined.
+- **`global_position` changes meaning** to camera-relative for every consumer (§10). Most
+  already want that — farwarp, sun occlusion, mouse picking, HUD placement — and several
+  simplify; a consumer wanting absolute ecliptic coordinates queries the f64 state, which is
+  the correct source anyway.
+
+
+*The lesser alternative: walk the camera's ancestor chain.* If the tree structure is to be left
+alone, the flaw can be patched rather than removed. Each frame, walk up from the camera's target
+and re-translate that chain — target, its parent, and so on — from f64, leaving every other body
+on the ordinary path. Depth is the knob, and it decides where the leftover 16 km lattice error
+lands. One node (the target alone) holds the camera at the world origin — measured, the
+per-frame slide goes to exactly 0.000 m and it converges to a fixed point — but puts up to ~8 km
+between craft and planet, about 1.5 px of parallax, and fixes only the camera's own parent:
+every other local caster keeps sliding, and a sibling craft (Hubble is a sibling of ISS under
+Earth) is displaced against it. Two nodes makes craft↔planet exact again and pushes the error
+out to planet↔star, where 16 km is 1e-7 rad and farwarp is remapping anyway. Depth 2 covers the
+general case, and rebasing a node fixes everything below it for free, since `top_level` severs
+only the link to the parent.
+
+It is a patch and should be judged as one. It writes into body positions from outside the
+positioner, it is a special case that helps only the camera's own chain, and it leaves the frame
+anchored at the barycentre — so the high-speed registration defect is untouched. Its virtue is
+that it is small, testable against the same acceptance check, and does not require this
+section's decision to be made first.
+
 ### 4.4 Registry, indexing, ordering
 
 - `bodies` / `top_bodies` statics stay: they are the system-wide lookup used by builders,
@@ -817,3 +917,6 @@ Compiled from exhaustive sweep of `ui_widgets/`, `ui_components/`, `ui/`,
 - 2026-08-29 — Initial draft from full body.gd read + exhaustive consumer inventories (GUI
   and program sweeps). All sections open for review; recommendations marked "proposed";
   unresolved items in §13.
+- 2026-09-04 — Added "Under Consideration: camera-relative placement" to §4.3, out of the ISS
+  shadow-shake investigation. Not a decision; the ground-rule tension noted there needs an
+  owner ruling before it goes further.
