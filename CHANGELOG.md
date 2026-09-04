@@ -12,11 +12,12 @@ See cloning and downloading instructions [here](https://www.ivoyager.dev/develop
 Under development using Godot 4.7.2.
 
 ### Added
-* Added IVBody_REDESIGN_v0.3.md planning doc.
+* Shader warm-up on the boot screen: registers the Core plugin's new IVShaderWarmup, and the boot screen now stays up through it, reporting *Compiling shaders (n of N)* with a note that only the first run after an update needs it. This moves the Compatibility renderer's shader compiles, which dominate a cold start and were hanging the camera mid-flight, onto the boot screen.
 * Added the Core plugin's new `IVExposureControl` widget to the control panel.
 * Enabled the Core plugin's new physical-light system (`IVCoreSettings.enable_physical_light`): physically calibrated sunlight, sky and ambient with a software compensating camera. A "Physical Light" row appears in Options (default on).
 
 ### Changed
+* Turned off `IVCoreSettings.apply_gl_compatibility_shadows`, so the Compatibility renderer — and with it the web export — takes one unshadowed light instead of the shadowed multi-light stack. This cuts each lit shader from four GL programs to one, which is a large part of the cold-start shader compile the boot screen reports; what it costs is local shadow maps, in practice the ISS shadowing itself. The analytic ring, eclipse and transit shadows are unaffected.
 * Attribution docs restructured: `IVOYAGER_WORKS.md` is retired and replaced by `IVOYAGER_ASSETS.md`, which documents every distributed asset individually with its own copyright and license; `3RD_PARTY.md` becomes a clean list by copyright holder. README.md updated to match.
 * [Dev ongoing] Sync attribution docs with assets and Core submodule.
 * [Dev ongoing] Updating plugin ivoyager_core with v0.2.1.dev.

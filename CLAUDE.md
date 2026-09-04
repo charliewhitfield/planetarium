@@ -13,10 +13,22 @@ Open in Godot Editor and press Play. No external build system — Godot handles 
 **First-time setup:** Clone with `--recursive` for submodules. The editor plugin auto-downloads assets (~216 MiB) on first run — press "Download" when prompted.
 
 **Export targets** (defined in `export_presets.cfg`):
-- Web: `export/planetarium-rc.html` (PWA with SharedArrayBuffer threading)
+- Web: `export/planetarium-rc.html` (PWA, single-threaded). `variant/thread_support` is off and
+  stays off: SharedArrayBuffer needs cross-origin isolation headers, which is more than we will
+  ask of a host. Don't propose threading as a fix for anything.
 - Windows: `export/Planetarium-v0.1.exe` (x86_64)
 
 There is no test framework or linter beyond Godot's built-in GDScript warnings.
+
+**Shader compile time is the dominant first-run cost on the Compatibility renderer, and so in
+the web export** — a cold start spends anywhere from tens of seconds to a couple of minutes
+compiling, depending on the GPU, nearly all of it now behind the boot screen via the Core
+plugin's `IVShaderWarmup`. `addons/ivoyager_core/SHADER_COMPILE_COST.md` carries the per-shader
+measurements, what actually drives them (the GL compiler unrolling constant-bound loops, not
+source length or include weight), why the Compatibility light configuration is the largest
+remaining lever, what editing a given `.gdshaderinc` costs in recompiles, where the two shader
+caches live, and how to measure it again. Read it before touching a shader or hand-unrolling
+anything. The timing harness is `addons/tools/time_shader_compiles.py`, run from this directory.
 
 ### GDScript Warning Preferences
 
@@ -28,6 +40,24 @@ All GDScript code should compile with **zero warnings**. Apply these strategies:
 - **SHADOWED_VARIABLE** — Suppress with `@warning_ignore("shadowed_variable")` only in static functions where shadowing the instance variable is expected. In all other cases, rename the variable to avoid shadowing.
 
 ## Architecture
+
+### Design documents
+
+Three documents in `addons/ivoyager_core/` describe the simulation at the level of logic and
+invariants, each with its own TODO list. Read the relevant one before changing that subsystem:
+
+- `PHYSICAL_MODEL.md` — the objective simulation: bodies, orbits as an element coordinate
+  system, trajectories, rotation, time, units and scale, small-body groups, the persisted
+  state and what a multiplayer sync would need.
+- `VISUAL_MODEL.md` — how that double-precision truth renders through a float32 pipeline:
+  parenting, origin shifting, farwarp, the shadow systems, culling, orbit lines, point fields,
+  mouse picking.
+- `PHOTOMETRIC_MODEL.md` — physically calibrated light: the calibration chain, the
+  compensating camera, surfaces, atmospheres, rings, stars, renderer parity.
+
+`addons/ivoyager_core/IVBody_REDESIGN_v0.3.md` is the living plan for the IVBody rework;
+`PHYSICAL_MODEL.md` and `VISUAL_MODEL.md` link to it. When the redesign lands and that file
+goes away, remove those links.
 
 ### Plugin System (Git Submodules)
 
