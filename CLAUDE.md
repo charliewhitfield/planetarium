@@ -55,9 +55,9 @@ invariants, each with its own TODO list. Read the relevant one before changing t
 - `PHOTOMETRIC_MODEL.md` — physically calibrated light: the calibration chain, the
   compensating camera, surfaces, atmospheres, rings, stars, renderer parity.
 
-`IVBody_REDESIGN_v0.3.md` at this repo's root is the living plan for the IVBody rework. It is
-not in the submodule, so `PHYSICAL_MODEL.md` links to it by its GitHub URL; when the redesign
-lands and that file goes away, remove those links.
+`addons/ivoyager_core/IVBody_REDESIGN_v0.3.md` is the living plan for the IVBody rework;
+`PHYSICAL_MODEL.md` and `VISUAL_MODEL.md` link to it. When the redesign lands and that file
+goes away, remove those links.
 
 ### Plugin System (Git Submodules)
 
