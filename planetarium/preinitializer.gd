@@ -61,6 +61,7 @@ func _init() -> void:
 	IVCoreSettings.manage_engine_time_scale = false
 	IVCoreSettings.stroboscope_frames_per_second = 4.5
 	IVCoreSettings.enable_physical_light = true # user Options toggle "Physical Light"
+	IVCoreSettings.apply_gl_compatibility_shadows = false # only ISS self-shadowing. No big loss.
 	
 	if is_web:
 		IVCoreSettings.disable_quit = true
