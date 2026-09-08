@@ -60,10 +60,11 @@ func _on_about_to_free() -> void:
 
 
 func get_method_names() -> Array[String]:
-	return ["get_exposure_state", "get_photometry", "get_metering_table", "set_physical_light",
+	return ["get_rings_geometry", "get_ring_frame", "set_rings",
+			"get_exposure_state", "get_photometry", "get_metering_table", "set_physical_light",
 			"get_body_debug", "set_ambient_energy", "set_reflected_light", "list_lights",
 			"poke_sky_radiance", "get_shadow_receivers", "set_exposure_ceiling",
-			"get_limb_samples", "set_limb_meter",
+			"get_limb_samples", "set_limb_meter", "set_ring_meter", "set_exposure",
 			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time",
 			"set_shell_visible", "set_shell_param", "set_glow", "set_psf_settings"]
 
@@ -73,6 +74,9 @@ func get_method_summaries() -> Dictionary:
 		"get_exposure_state": "Report exposure statics, light energies, and managed scene values.",
 		"get_photometry": "Report the manager's tuning members and derived calibration.",
 		"get_metering_table": "Report per-body metering rows (mirrors manager math; no parent shadow).",
+		"get_rings_geometry": "Report each ring system's camera and sun elevation above its plane, and the phase angle.",
+		"set_rings": "Show, hide or re-parameterize a ring system at runtime ({\"visible\": bool, \"param\": String, \"value\": float}; omit a key to keep it). Decomposes a rendered pixel into ring against globe, and sweeps a photometric candidate in ONE app run.",
+		"get_ring_frame": "The camera's own projection and transform beside each ring plane's frame and its planet's figure, all in km ({}). Enough to turn any screen pixel into the ring radius it looks at, offline - which is what a rendered ring artifact has to be identified by.",
 		"set_physical_light": "Set the physical_light user setting ({\"enabled\": bool}).",
 		"get_body_debug": "Report an IVBody's metering-relevant state ({\"name\": entity_name}).",
 		"set_ambient_energy": "Override Environment.ambient_light_energy ({\"energy\": float}).",
@@ -81,6 +85,8 @@ func get_method_summaries() -> Dictionary:
 		"poke_sky_radiance": "Rewrite the sky material's energy_multiplier to trigger a radiance rebake.",
 		"get_shadow_receivers": "Report per-body analytic-occlusion opt-in, visual layers, and parent-shadow fraction.",
 		"set_limb_meter": "Override the limb ramp at runtime ({\"start\": float, \"full\": float, \"edge\": float}; omit a key to keep it).",
+		"set_ring_meter": "Override the ring openness ramp at runtime ({\"onset\": float, \"full\": float}; omit a key to keep it); sweeps the edge-on release in ONE app run.",
+		"set_exposure": "Freeze or release auto exposure ({\"auto\": bool, \"manual_ev\": float}; omit a key to keep it). A frozen exposure is what separates a render change from a metering change.",
 		"list_saved_views": "List the user's cached views by collection ({}); apply_view covers table views only.",
 		"apply_saved_view": "Apply one cached view ({\"name\": String, \"collection\": String}).",
 		"get_render_time": "Last frame's measured viewport render times ({}); enables measurement on first call, so poll and average.",
@@ -96,6 +102,10 @@ func get_method_summaries() -> Dictionary:
 
 func dispatch(method: String, params: Dictionary) -> Variant:
 	match method:
+		"set_rings":
+			return _set_rings(params)
+		"get_ring_frame":
+			return _get_ring_frame()
 		"get_exposure_state":
 			return _get_exposure_state()
 		"get_photometry":
@@ -122,6 +132,10 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 			return _get_limb_samples(params)
 		"set_limb_meter":
 			return _set_limb_meter(params)
+		"set_ring_meter":
+			return _set_ring_meter(params)
+		"set_exposure":
+			return _set_exposure(params)
 		"project_limb_circle":
 			return _project_limb_circle(params)
 		"list_saved_views":
@@ -138,7 +152,193 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 			return _set_psf_settings(params)
 		"set_shell_param":
 			return _set_shell_param(params)
+		"get_rings_geometry":
+			return _get_rings_geometry()
 	return {"_error": {"code": ERR_UNKNOWN_METHOD, "message": "Unknown method: %s" % method}}
+
+
+# Every IVRings node's geometry in the two angles that decide how a ring system looks:
+# the camera's and the sun's elevation above the ring PLANE, plus the phase angle. A
+# caller outside the app cannot derive these -- IVCamera's view_position latitude is an
+# ECLIPTIC latitude, and a ring plane sits at the body's own obliquity to that, so posing
+# by latitude sweeps an axis that is neither of them (measured: camera latitude -26 deg
+# put Saturn's rings edge-on and latitude 0 left them 26 deg open). Report what the
+# renderer itself uses, so a rig can solve for the elevation it wants.
+#
+# Sign convention: elevations are signed against the SAME plane normal, so
+# camera_elevation and sun_elevation sharing a sign means the camera sees the lit face.
+# IVRings flips its own node to keep +y sunward, so the node basis cannot be read for
+# this -- the normal here is taken before that flip by keying on the sun.
+func _get_rings_geometry() -> Variant:
+	var camera := IVGlobal.get_tree().root.get_camera_3d()
+	if !camera:
+		return {"_error": {"code": ERR_NOT_STARTED, "message": "No camera"}}
+	var camera_position := camera.global_position
+	var rows: Array[Dictionary] = []
+	for rings: IVRings in _find_rings(IVGlobal.get_tree().root):
+		# IVRings is not necessarily a direct child of its IVBody; walk up for it.
+		var body: IVBody = null
+		var ancestor := rings.get_parent()
+		while ancestor:
+			var candidate := ancestor as IVBody
+			if candidate:
+				body = candidate
+				break
+			ancestor = ancestor.get_parent()
+		var star: IVBody = IVBody.bodies.get(rings.illuminating_star)
+		if !body or !star:
+			continue
+		var normal := rings.global_basis.y.normalized()
+		var center := rings.global_position
+		var to_sun := (star.global_position - center)
+		var to_camera := (camera_position - center)
+		# Take the normal on the sun's side, so both elevations are signed consistently.
+		if normal.dot(to_sun) < 0.0:
+			normal = -normal
+		var sun_distance := to_sun.length()
+		var camera_distance := to_camera.length()
+		var sun_elevation := asin(clampf(normal.dot(to_sun) / sun_distance, -1.0, 1.0))
+		var camera_elevation := asin(clampf(normal.dot(to_camera) / camera_distance, -1.0, 1.0))
+		var phase := acos(clampf(to_sun.normalized().dot(to_camera.normalized()), -1.0, 1.0))
+		# The plane/point crossfade, both ends of it, and the quad it hands over to.
+		var material := rings.get_surface_override_material(0) as ShaderMaterial
+		var plane_fraction: Variant = (material.get_shader_parameter(
+				&"plane_light_fraction") if material else null)
+		var view_height := IVGlobal.get_viewport().get_visible_rect().size.y
+		var pixel_angle := 2.0 / maxf(view_height
+				* absf(camera.get_camera_projection().y.y), 1e-9)
+		# Read through get() so this suite still runs against a build without the
+		# plane-to-point handoff -- which is exactly the build an A/B compares to.
+		var flux_factor: Variant = body.get(&"rings_psf_flux_factor")
+		var profile_variant: Variant = rings.get(&"_psf_tau")
+		var profile_bins := -1
+		if typeof(profile_variant) == TYPE_PACKED_FLOAT64_ARRAY:
+			var profile: PackedFloat64Array = profile_variant
+			profile_bins = profile.size()
+		var psf_magnitude := NAN
+		var body_psf := body.get_node_or_null(^"BodyPSF") as MeshInstance3D
+		if body_psf:
+			var psf_material := body_psf.material_override as ShaderMaterial
+			if psf_material:
+				psf_magnitude = psf_material.get_shader_parameter(&"apparent_magnitude")
+		rows.append({
+			"rings": String(rings.name),
+			"body": String(body.name),
+			"camera_elevation_deg": rad_to_deg(camera_elevation),
+			"sun_elevation_deg": rad_to_deg(sun_elevation),
+			"phase_deg": rad_to_deg(phase),
+			"lit_face": camera_elevation >= 0.0,
+			"camera_distance_m": camera_distance,
+			"camera_distance_outer_radii": camera_distance / rings.outer_radius,
+			"inner_radius_m": rings.inner_radius,
+			"outer_radius_m": rings.outer_radius,
+			"texture_inner_radius_m": rings.texture_inner_radius,
+			"texture_outer_radius_m": rings.texture_outer_radius,
+			"outer_pixels": rings.outer_radius / (camera_distance * pixel_angle),
+			"plane_light_fraction": plane_fraction,
+			"psf_flux_factor": flux_factor,
+			"psf_profile_bins": profile_bins,
+			"body_psf_magnitude": psf_magnitude,
+		})
+	return {"rows": rows}
+
+
+# Show, hide or re-parameterize every ring system. Hiding one separates what the ring
+# draws from what the globe behind it draws, which a screenshot alone cannot.
+func _set_rings(params: Dictionary) -> Variant:
+	var found := _find_rings(IVGlobal.get_tree().root)
+	if found.is_empty():
+		return {"_error": {"code": ERR_DOES_NOT_EXIST, "message": "no IVRings in the tree"}}
+	var parameter: String = params.get("param", "")
+	var rows: Array[Dictionary] = []
+	for rings: IVRings in found:
+		if params.has("visible"):
+			var wanted_visible: bool = params["visible"]
+			rings.visible = wanted_visible
+		var material := rings.get_surface_override_material(0) as ShaderMaterial
+		if parameter and material:
+			if params.has("value"):
+				var value: float = params["value"]
+				material.set_shader_parameter(StringName(parameter), value)
+			rows.append({"rings": String(rings.name), "visible": rings.visible,
+					"param": parameter,
+					"value": material.get_shader_parameter(StringName(parameter))})
+		else:
+			rows.append({"rings": String(rings.name), "visible": rings.visible})
+	return {"ok": true, "rings": rows}
+
+
+# The camera's projection and transform, each ring plane's own frame, and the planet's
+# figure -- everything a Python driver needs to intersect a screen ray with the ring plane
+# offline. Screen positions are unaffected by the farwarp depth remap, so the engine's own
+# projection matrix describes them exactly.
+func _get_ring_frame() -> Variant:
+	var camera := IVGlobal.get_viewport().get_camera_3d()
+	if !camera:
+		return {"_error": {"code": ERR_NOT_STARTED, "message": "No camera"}}
+	var km := IVUnits.KM
+	var view_size := camera.get_viewport().get_visible_rect().size
+	var projection := camera.get_camera_projection()
+	var basis := camera.global_basis
+	var rows: Array[Dictionary] = []
+	for rings: IVRings in _find_rings(IVGlobal.get_tree().root):
+		var body: IVBody = null
+		var ancestor := rings.get_parent()
+		while ancestor:
+			var candidate := ancestor as IVBody
+			if candidate:
+				body = candidate
+				break
+			ancestor = ancestor.get_parent()
+		var star: IVBody = IVBody.bodies.get(rings.illuminating_star)
+		if !body or !star:
+			continue
+		var rings_basis := rings.global_basis
+		rows.append({
+			"rings": String(rings.name),
+			"body": String(body.name),
+			"center_km": _vector(rings.global_position, km),
+			"normal": _vector(rings_basis.y.normalized(), 1.0),
+			"axis_x": _vector(rings_basis.x.normalized(), 1.0),
+			"axis_z": _vector(rings_basis.z.normalized(), 1.0),
+			"plane_radius_km": rings_basis.x.length() / km,
+			"inner_radius_km": rings.inner_radius / km,
+			"outer_radius_km": rings.outer_radius / km,
+			"texture_inner_radius_km": rings.texture_inner_radius / km,
+			"texture_outer_radius_km": rings.texture_outer_radius / km,
+			"body_center_km": _vector(body.global_position, km),
+			"body_equatorial_radius_km": body.get_equatorial_radius() / km,
+			"body_polar_radius_km": body.get_polar_radius() / km,
+			"body_pole": _vector(body.basis.y.normalized(), 1.0),
+			"star_center_km": _vector(star.global_position, km),
+			"star_radius_km": star.mean_radius / km,
+		})
+	return {
+		"view_size": [view_size.x, view_size.y],
+		"camera_origin_km": _vector(camera.global_position, km),
+		"camera_basis_x": _vector(basis.x, 1.0),
+		"camera_basis_y": _vector(basis.y, 1.0),
+		"camera_basis_z": _vector(basis.z, 1.0),
+		"projection": [[projection.x.x, projection.x.y, projection.x.z, projection.x.w],
+				[projection.y.x, projection.y.y, projection.y.z, projection.y.w],
+				[projection.z.x, projection.z.y, projection.z.z, projection.z.w],
+				[projection.w.x, projection.w.y, projection.w.z, projection.w.w]],
+		"rings": rows,
+	}
+
+
+func _vector(value: Vector3, unit: float) -> Array:
+	return [value.x / unit, value.y / unit, value.z / unit]
+
+
+func _find_rings(node: Node) -> Array[IVRings]:
+	var found: Array[IVRings] = []
+	var rings := node as IVRings
+	if rings:
+		found.append(rings)
+	for child in node.get_children():
+		found.append_array(_find_rings(child))
+	return found
 
 
 # Show or hide one IVShellsModel shell of a body ({"name", "shell", "visible"}), so a
@@ -477,7 +677,9 @@ func _get_metering_table() -> Dictionary:
 		var screen_fraction := fraction_per_theta_sq * angular_radius * angular_radius
 		var view_factor := _view_factor(camera, manager, body.global_position, angular_radius,
 				view_size, tan_half_fov, aspect)
-		if view_factor <= 0.0:
+		# The DISC's gate, and only its own candidates ride it; a ring or a shell reaching
+		# outside the disc carries a gate of its own. Mirrors _get_metering_target().
+		if view_factor <= 0.0 and !manager._wide_candidate_bodies.has(body.name):
 			continue
 		if (body.flags & IVBody.BodyFlags.BODYFLAGS_STAR) != 0:
 			if body != star:
@@ -552,9 +754,9 @@ func _get_metering_table() -> Dictionary:
 				"candidate_exposure": _candidate_exposure(manager, luminance, weight,
 						log_rest, rest_exposure),
 			})
-		var ring_row := _get_ring_row(manager, camera, body, camera_vector, camera_distance,
+		var ring_row := _get_ring_row(manager, body, camera_vector, camera_distance,
 				star_vector, star_distance, illuminance, fraction_per_theta_sq, view_size,
-				tan_half_fov, aspect, log_rest, rest_exposure)
+				log_rest, rest_exposure)
 		if !ring_row.is_empty():
 			rows.append(ring_row)
 		for ceiling_row in _get_ceiling_rows(manager, camera, body, camera_distance,
@@ -592,50 +794,67 @@ func _view_factor(camera: Camera3D, manager: IVExposureManager, global_position:
 
 # Mirrors IVExposureManager._get_ring_candidate_exposure (parent shadow omitted,
 # like the body rows). Returns {} when the ring doesn't meter.
-func _get_ring_row(manager: IVExposureManager, camera: Camera3D, body: IVBody,
+func _get_ring_row(manager: IVExposureManager, body: IVBody,
 		camera_vector: Vector3, camera_distance: float, star_vector: Vector3,
 		star_distance: float, illuminance: float, fraction_per_theta_sq: float,
-		view_size: Vector2, tan_half_fov: float, aspect: float, log_rest: float,
-		rest_exposure: float) -> Dictionary:
-	const PHASE_EXPONENT := 6.0
+		view_size: Vector2, log_rest: float, rest_exposure: float) -> Dictionary:
 	var row := IVTableData.db_find_in_array(&"rings", &"bodies", body.name)
 	if row == -1:
 		return {}
 	var inner_radius := IVTableData.get_db_float(&"rings", &"inner_radius", row)
 	var outer_radius := IVTableData.get_db_float(&"rings", &"outer_radius", row)
-	var litside_phase_boost := 1.25 if IVGlobal.is_gl_compatibility else 3.0
+	var back_phase := IVTableData.get_db_float(&"rings", &"back_phase", row)
+	var forward_phase := IVTableData.get_db_float(&"rings", &"forward_phase", row)
+	var forward_level := IVTableData.get_db_float(&"rings", &"forward_level", row)
+	var opposition_surge := IVTableData.get_db_float(&"rings", &"opposition_surge", row)
+	var opposition_width := IVTableData.get_db_float(&"rings", &"opposition_width", row)
+	var clumping := IVTableData.get_db_float(&"rings", &"clumping", row)
 	var axis := body.rotation_axis
 	var sin_camera_elevation := -camera_vector.dot(axis) / camera_distance
 	var sin_sun_elevation := star_vector.dot(axis) / star_distance
-	if sin_camera_elevation * sin_sun_elevation <= 0.0:
-		return {}
+	var mu := absf(sin_camera_elevation)
+	var mu0 := absf(sin_sun_elevation)
 	var annulus_theta_sq := (outer_radius * outer_radius - inner_radius * inner_radius) \
-			* absf(sin_camera_elevation) / (camera_distance * camera_distance)
-	var ring_fraction := fraction_per_theta_sq * annulus_theta_sq
-	var view_factor := _view_factor(camera, manager, body.global_position,
-			minf(outer_radius / camera_distance, 1.0), view_size, tan_half_fov, aspect)
-	var ring_weight := view_factor * _ramp_weight(ring_fraction,
+			* mu / (camera_distance * camera_distance)
+	var visible_fraction: float = manager._get_ring_visible_fraction(body,
+			Vector2(inner_radius, outer_radius), camera_vector, camera_distance, view_size)
+	var ring_fraction := fraction_per_theta_sq * annulus_theta_sq * visible_fraction
+	var openness_hold := _ramp_weight(mu, manager.ring_meter_full_openness,
+			manager.ring_meter_onset_openness)
+	var ring_weight := openness_hold * _ramp_weight(ring_fraction,
 			manager.meter_fraction_start, manager.meter_fraction_full)
 	if ring_weight <= 0.0:
 		return {}
+	var lit_face := sin_camera_elevation * sin_sun_elevation > 0.0
+	var geometry: float
+	var ring_albedo: float
+	if lit_face:
+		geometry = mu0 / maxf(mu + mu0, 1e-6) # the slab term's saturated limit
+		ring_albedo = manager.ring_meter_albedo
+	else:
+		geometry = manager._get_ring_transmission_peak(mu, mu0, clumping)
+		ring_albedo = manager.ring_meter_unlit_albedo
 	var to_sun := (star_vector + camera_vector).normalized()
-	var phase_mix_base := (to_sun.dot(-camera_vector / camera_distance) + 1.0) * 0.5
-	var phase_mix := phase_mix_base ** PHASE_EXPONENT
-	var phase_factor := litside_phase_boost * phase_mix + 1.0
-	var ring_luminance := manager.ring_meter_albedo * phase_factor \
-			* (illuminance * absf(sin_sun_elevation)
-			+ manager.ambient_starlight_illuminance) / PI
+	var phase := acos(clampf(to_sun.dot(-camera_vector / camera_distance), -1.0, 1.0))
+	var phase_fraction := (phase - back_phase) / maxf(forward_phase - back_phase, 1e-4)
+	var level := maxf(forward_level, 1e-6) ** phase_fraction
+	level *= 1.0 + opposition_surge * exp(-phase / maxf(opposition_width, 1e-6))
+	var ring_luminance := ring_albedo * geometry * level \
+			* (illuminance + manager.ambient_starlight_illuminance) / PI
 	if ring_luminance <= 0.0:
 		return {}
 	return {
 		"name": String(body.name), "candidate": "rings",
 		"screen_fraction": ring_fraction, "weight": ring_weight,
-		"view_factor": view_factor, "sin_camera_elevation": sin_camera_elevation,
-		"sin_sun_elevation": sin_sun_elevation, "phase_mix": phase_mix,
-		"phase_factor": phase_factor, "luminance": ring_luminance,
+		"visible_fraction": visible_fraction, "openness_hold": openness_hold,
+		"sin_camera_elevation": sin_camera_elevation,
+		"sin_sun_elevation": sin_sun_elevation, "phase_deg": rad_to_deg(phase),
+		"lit_face": lit_face, "slab_geometry": geometry,
+		"phase_level": level, "luminance": ring_luminance,
 		"candidate_exposure": _candidate_exposure(manager, ring_luminance, ring_weight,
 				log_rest, rest_exposure),
 	}
+
 
 
 # Mirrors IVExposureManager._get_ceiling_candidate_exposure: one row per shell of this body
@@ -1020,6 +1239,43 @@ func _project_limb_circle(params: Dictionary) -> Variant:
 
 # Runtime override of the limb ramp, so a to-taste value can be swept in one app run rather
 # than one run per candidate.
+func _set_ring_meter(params: Dictionary) -> Variant:
+	var manager_var: Variant = IVGlobal.program.get(&"ExposureManager")
+	if not manager_var is IVExposureManager:
+		return {"_error": {"code": ERR_NOT_ALLOWED, "message": "no ExposureManager"}}
+	var manager: IVExposureManager = manager_var
+	if params.has("onset"):
+		var onset: float = params["onset"]
+		manager.ring_meter_onset_openness = onset
+	if params.has("full"):
+		var full: float = params["full"]
+		manager.ring_meter_full_openness = full
+	return {
+		"ring_meter_onset_openness": manager.ring_meter_onset_openness,
+		"ring_meter_full_openness": manager.ring_meter_full_openness,
+	}
+
+
+func _set_exposure(params: Dictionary) -> Variant:
+	var manager_var: Variant = IVGlobal.program.get(&"ExposureManager")
+	if not manager_var is IVExposureManager:
+		return {"_error": {"code": ERR_NOT_ALLOWED, "message": "no ExposureManager"}}
+	var manager: IVExposureManager = manager_var
+	if params.has("manual_ev"):
+		var manual_ev: float = params["manual_ev"]
+		manager.manual_exposure_ev = manual_ev
+	if params.has("auto"):
+		var auto: bool = params["auto"]
+		manager.auto = auto
+	return {
+		"auto": manager.auto,
+		"manual_exposure_ev": manager.manual_exposure_ev,
+		"auto_exposure_ev": IVExposureManager.auto_exposure_ev,
+		"exposure_adjustment_ev": manager.exposure_adjustment_ev,
+		"exposure": IVExposureManager.exposure,
+	}
+
+
 func _set_limb_meter(params: Dictionary) -> Variant:
 	var manager_var: Variant = IVGlobal.program.get(&"ExposureManager")
 	if not manager_var is IVExposureManager:
@@ -1088,10 +1344,13 @@ func _set_glow(params: Dictionary) -> Variant:
 				return {"_error": {"code": ERR_INVALID_PARAMS,
 						"message": "'levels' entries must be numbers"}}
 			var level: float = level_var
-			environment.set_glow_level(i + 1, level)
+			# Environment's own index is 0-based (MAX_GLOW_LEVELS = 7), where the inspector
+			# labels the same levels 1-7; i + 1 here errored on the last one and skipped the
+			# first.
+			environment.set_glow_level(i, level)
 	var reported_levels := []
 	for i in 7:
-		reported_levels.append(environment.get_glow_level(i + 1))
+		reported_levels.append(environment.get_glow_level(i))
 	return {
 		"ok": true,
 		"enabled": environment.glow_enabled,
