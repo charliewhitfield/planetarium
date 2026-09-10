@@ -55,6 +55,13 @@ invariants, each with its own TODO list. Read the relevant one before changing t
 - `PHOTOMETRIC_MODEL.md` — physically calibrated light: the calibration chain, the
   compensating camera, surfaces, atmospheres, rings, stars, renderer parity.
 
+**These are what a code comment points AT, not something a code comment restates.** A file
+header says what the file is, how to use it and what will bite a caller; the model behind it —
+the derivation, the measurements, the alternatives weighed, the defect that motivated a term —
+belongs in one of these documents, and the header names the section. Two copies of one fact
+means the code copy is the one that goes stale, because nobody re-reads a shader header. When a
+mechanism or a value changes, grep for everything that describes it.
+
 `addons/ivoyager_core/IVBody_REDESIGN_v0.3.md` is the living plan for the IVBody rework;
 `PHYSICAL_MODEL.md` and `VISUAL_MODEL.md` link to it. When the redesign lands and that file
 goes away, remove those links.
@@ -133,6 +140,9 @@ When running the Planetarium for testing:
 - **Godot executable:** Find the most recent `Godot_v*_console.exe` (or `godot*.console.exe`) in the parent directory of this project (i.e., `../`). Use the `_console` variant to see stdout. If no Godot executable is found there, ask the user for the path.
 - **Launch command:** `"<godot_console_exe>" --path "<project_dir>" --windowed --position 0,0 --resolution 1920x1080`
 - **TCP interface:** The `AssistantServer` listens on `127.0.0.1:29071` after the simulator starts. Use `addons/ivoyager_assistant/tools/assistant_client.sh` to send JSON-RPC commands.
+- **Get a clean frame before judging a render, and confirm it rather than assume it.** `screenshot`'s `hide_gui` hides the 2D GUI and nothing else: orbit lines, body names, symbols and the small-body point cloud all keep drawing over the subject, and they are the first thing to remove when the question is what a body or a shader actually looks like. Call `set_huds` with `{"visible": false}` — it is **absolute**, where the `toggle_*` actions are toggles whose result depends on the state the session started in, so pressing `toggle_orbits` on a session that already hides them turns them ON. Read the flags it returns back. Restore with `{"visible": true}` when the run is about the GUI.
+- **`move_camera`'s `view_position` is measured in whatever frame the camera is TRACKING, and the default is not body-relative.** Pass `tracking: "ground"` to pose relative to the target's own equator — that is the mode in which latitude is a latitude *on the body*, and so the only one in which "20 degrees above the ring plane" or "over the north pole" means what it says. `"orbit"` (the default) and `"ecliptic"` measure latitude in a frame the body's obliquity is tilted from: on Saturn, ecliptic latitude 0 leaves the rings ~26 degrees open and −26 puts them edge-on. Whatever you pose, **measure the geometry back** from the app rather than trusting the number you sent.
+- **The user's cached views are staging you should reuse, not re-derive.** `list_cached_views` and `apply_cached_view` reproduce a framing (and its HUD state) that the maintainer set up and saved by hand; check for one before hunting for a pose with `move_camera`.
 - **Quit step:** Always call `quit` with `{"force":true}` as the **last test step**. This calls `IVStateManager.quit(true)` which performs a clean shutdown and reveals errors such as orphan nodes in the Godot console output.
 
 ## License
