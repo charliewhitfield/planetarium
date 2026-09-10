@@ -89,6 +89,7 @@ func _init() -> void:
 	options_popup.add_section(&"LABEL_TIME", 0, 0)
 	options_popup.add_option(&"LABEL_TIME", &"LABEL_TERRESTRIAL_TIME_CLOCK",
 			&"terrestrial_time_clock")
+	options_popup.option_tooltips[&"terrestrial_time_clock"] = &"HINT_TERRESTRIAL_TIME_CLOCK"
 
 
 func _on_core_init_program_objects_instantiated() -> void:
