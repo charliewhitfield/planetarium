@@ -15,6 +15,7 @@ Under development using Godot 4.7.2.
 * Shader warm-up on the boot screen: registers the Core plugin's new IVShaderWarmup, and the boot screen now stays up through it, reporting *Compiling shaders (n of N)* with a note that only the first run after an update needs it. This moves the Compatibility renderer's shader compiles, which dominate a cold start and were hanging the camera mid-flight, onto the boot screen.
 * Added the Core plugin's new `IVExposureControl` widget to the control panel.
 * Enabled the Core plugin's new physical-light system (`IVCoreSettings.enable_physical_light`): physically calibrated sunlight, sky and ambient with a software compensating camera. A "Physical Light" row appears in Options (default on).
+* [GRAPHICS_BUDGET.md](GRAPHICS_BUDGET.md): what each candidate graphics option would buy back on a weak GPU and cost on screen, measured on an Intel iGPU and a GTX 1650 Ti.
 
 ### Changed
 * Turned off `IVCoreSettings.apply_gl_compatibility_shadows`, so the Compatibility renderer — and with it the web export — takes one unshadowed light instead of the shadowed multi-light stack. This cuts each lit shader from four GL programs to one, which is a large part of the cold-start shader compile the boot screen reports; what it costs is local shadow maps, in practice the ISS shadowing itself. The analytic ring, eclipse and transit shadows are unaffected.
