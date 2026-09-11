@@ -270,9 +270,9 @@ across the top; glare off, untapered wing and gated wing below.
 
 Off saves 5-13% of an iGPU frame, the low end in atmosphere views where fragment shading dwarfs
 everything else, and 5-23% on the GTX. 4x costs 9-11% more than 2x on the iGPU and 3-15% on the
-GTX; 8x wasn't measured. The planet rims don't need it, because the surface shaders already image
-each rim pixel through the camera's PSF. What does need it is lines: orbit lines, ring edges and
-spacecraft.
+GTX. 8x, measured later, adds 12-52% to a 2x frame (see *Addendum: more shadow and MSAA
+measurements*). The planet rims don't need it, because the surface shaders already image each rim
+pixel through the camera's PSF. What does need it is lines: orbit lines, ring edges and spacecraft.
 
 *Figure notes (illustrated version).* At 2x and off, only the lines change, and the dense
 ring-plane orbits break into steps.
@@ -288,7 +288,8 @@ shadows. Their cost is not small.
   frame at the Sun view, and +18% to +88% on the iGPU.
 
 Drop 16384. Add Off, which disables the shadowed lights. Default to 4096. The atlas sizes are 16,
-64, 256 and 1024 MiB.
+64, 256 and 1024 MiB. Later runs back 4096 as the default, and find resolution cheap at any size on
+the web renderer (see *Addendum: more shadow and MSAA measurements*).
 
 ### FXAA, TAA and Physical Light
 
@@ -414,7 +415,7 @@ or the web it would pick Compatibility, Reduced atmospheres, 75% scale on hi-DPI
   excluded.
 - **Estimates, not measurements.** The browser itself was not measured, so ANGLE stands in for
   Chrome. The annulus and exposure-skip relief figures are bounds from proxies rather than
-  implementations. 8x MSAA and the Mobile renderer were not tested.
+  implementations. The Mobile renderer was not tested.
 
 
 ## Addendum: the limb ring and surface twilight
@@ -454,3 +455,58 @@ edge must reach inside the `ATM_RIM_HANDOFF` band, plus about two pixels for the
   clouds keep their twilight. What goes is the band beyond the limb, a backlit crescent's glowing
   cusps and Titan's haze ring. The outermost 1% of the disc also loses the shell's part of the edge
   haze. This variant was measured but not screenshotted.
+
+
+## Addendum: more shadow and MSAA measurements
+
+Measured on 2026-09-11, after the report was published, to fill three gaps before the graphics
+Options tooltips were given GPU-cost levels: shadow resolution on the web renderer, the 4096
+setting, and 8x MSAA. The machine and method are the same. The views were five of the eight above
+(Earth at 3 radii, Saturn at 45°, Jupiter's moons, the Sun close-up and the whole system), plus
+close-ups of Juno and New Horizons (`VIEW_ZOOM`), which give the shadow maps something to cast.
+Deep-space craft were chosen because they are always sunlit. The Planetarium ships with
+Compatibility shadows off, so `IVCoreSettings.apply_gl_compatibility_shadows` was turned on for
+the Compatibility runs.
+
+Each figure is the change in GPU time against the mean of the scene's repeated baselines, leaving
+out Juno's first, which was taken before its model had loaded. Repeated baselines within a scene
+drifted by up to 16%, so a change of a few percent is noise; the large Forward+ iGPU changes are
+well clear of it.
+
+### Shadow resolution
+
+Change on leaving the default 8192. The light views are Jupiter's moons, the Sun close-up and the
+whole system; Saturn and Earth, where other work dominates the frame, moved less.
+
+| Renderer, GPU | 4096, light views | 2048, light views | 4096, spacecraft | 2048, spacecraft |
+|---|---:|---:|---:|---:|
+| Forward+, Intel iGPU | -23 to -28% | -29 to -35% | -33% | -40 to -42% |
+| Forward+, GTX 1650 Ti | 0 to -3% | -2 to -4% | -2% † | -2% † |
+| Compatibility, Intel iGPU | 0 to -2% | -1 to -6% | -4 to -5% | -5 to -7% |
+| Compatibility, GTX 1650 Ti | -2 to -3% | -4 to +3% | -2 to -6% | -1 to -3% |
+
+† New Horizons only. Juno's GTX baselines drifted 16%, more than any setting moved it.
+
+- **Forward+ on the iGPU is where resolution costs.** 4096 recovers about four-fifths of 2048's
+  saving, with or without a craft in view. That backs 4096 as the default.
+- **The GTX hardly notices** the difference between the three sizes.
+- **Compatibility pays little at any size,** on either GPU, even with a craft casting. The iGPU's
+  Forward+ cost does not carry over to the web renderer. What turning Compatibility shadows on
+  costs in the first place was not measured.
+
+### MSAA
+
+Change against the default 2x, over the five views:
+
+| Renderer, GPU | Disabled | 8x |
+|---|---:|---:|
+| Forward+, Intel iGPU | -10 to -19% | +12 to +52% |
+| Forward+, GTX 1650 Ti | -5 to -13% | +15 to +36% |
+| Compatibility, Intel iGPU | -10 to -19% ‡ | +17 to +49% |
+| Compatibility, GTX 1650 Ti | -8 to -21% | +13 to +27% |
+
+‡ Leaving out the Sun close-up, which read 11% slower with MSAA off.
+
+8x adds 12-52% to a 2x frame in every combination. The Compatibility runs had Compatibility
+shadows on, which the Planetarium's web setup does not, so the report's own Disabled figures for
+that setup (-5 to -13% on the iGPU) stand.
