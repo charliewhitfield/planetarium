@@ -36,7 +36,8 @@ in the rendered image, measured in 8-bit display codes on screenshots taken befo
 5. Several costs buy nothing visible and can go with no option at all: the Milky Way and most of
    the star field in any lit-body view, the limb shell's disc-interior fragments, and sphere
    detail beyond 128x64. Together they are worth 10-30% in most views and far more at Earth and
-   Titan.
+   Titan. The limb's interior has since gone, for 19-54% of an iGPU atmosphere frame (see
+   *Addendum: the limb annulus, measured*).
 
 
 ## Where the frame goes today
@@ -186,9 +187,11 @@ The driver evidently runs much of this large program for pixels that contribute 
 
 What does work is not generating those fragments at all. Draw the limb shell as a camera-facing
 annulus around the silhouette instead of a full sphere. `atm_limb()` needs only the view ray,
-which a billboard ring supplies. The dead-code shader bounds what that buys. At Earth-fill the
-shell's interior cost falls from ~370 ms toward the floor, leaving only the rim's real work. This
-is the largest single win available, and it changes no pixel (see the *Addendum*).
+which a ring on the shell's near side supplies; a flat billboard would stand behind the disc
+across the handoff band and lose it to the depth test. The dead-code shader bounds what that
+buys: at Earth-fill the shell's interior cost falls from ~370 ms toward the floor, leaving only
+the rim's real work. Built and measured since, the rim's work proved the larger part of what was
+left (see *Addendum: the limb annulus, measured*).
 
 
 ## 3D render scale
@@ -325,7 +328,7 @@ These need no option. Each removes work whose result never reaches the screen.
 
 | Change | Measured basis | Expected relief |
 |---|---|---|
-| **Limb shell as a camera-facing annulus**, not a full sphere | A dead-code limb body costs the same as a hidden shell. A discarding one costs about 1/3 of the full shader. | Earth-fill ~-50 to -70% (iGPU); Titan less, since its annulus is real work |
+| **Limb shell as a camera-facing annulus**, not a full sphere (done; see addendum) | A dead-code limb body costs the same as a hidden shell. A discarding one costs about 1/3 of the full shader. | Measured on the iGPU: Earth-fill -37%, Venus close -54%, Titan and Mars close -19 to -20% |
 | **Skip the sky pass** when the panorama x exposure is below one display code | Milky Way off changes zero pixels in every lit-body view | -10 to -17% (iGPU), -5 to -13% (GTX) in those views |
 | **Skip star bins** the current exposure renders below one code; split the star mesh by bin | Cutting to V 11 changes zero pixels in lit-body views, yet stars cost 13-28% there | -13 to -28% in lit-body views |
 | **Sphere 128x64**, or distance LOD | 128x64 measured indistinguishable | -10 to -27% |
@@ -414,8 +417,9 @@ or the web it would pick Compatibility, Reduced atmospheres, 75% scale on hi-DPI
   (Earth) and ~900 ms (Titan). Where a scene's baseline drifted mid-run, rows after the drift are
   excluded.
 - **Estimates, not measurements.** The browser itself was not measured, so ANGLE stands in for
-  Chrome. The annulus and exposure-skip relief figures are bounds from proxies rather than
-  implementations. The Mobile renderer was not tested.
+  Chrome. The exposure-skip relief figures are bounds from proxies rather than implementations;
+  the annulus's were too, and have since been measured below their bound (see the addendum).
+  The Mobile renderer was not tested.
 
 
 ## Addendum: the limb ring and surface twilight
@@ -510,3 +514,39 @@ Change against the default 2x, over the five views:
 8x adds 12-52% to a 2x frame in every combination. The Compatibility runs had Compatibility
 shadows on, which the Planetarium's web setup does not, so the report's own Disabled figures for
 that setup (-5 to -13% on the iGPU) stand.
+
+
+## Addendum: the limb annulus, measured
+
+Measured on 2026-09-11, after the annulus was built into ivoyager_core (v0.2.1.dev): the limb
+shell now draws a camera-facing ring of its own sphere, from two pixels inside the disc's handoff
+band out to the shell's silhouette (`limb_annulus_mesh`; *Atmospheres* in the Core's
+PHOTOMETRIC_MODEL.md). Same machine and method, except that the shipped sphere and the annulus
+were swapped within one process and interleaved A/B/A/B, each figure the median of 15 frames.
+The poses are close to, not identical with, the eight views above.
+
+| View | Intel UHD, Compatibility | GTX 1650 Ti, Compatibility | GTX 1650 Ti, Forward+ |
+|---|---:|---:|---:|
+| Earth fills the screen (1.6 radii, day side) | 481 → 304 ms (-37%) | 24.2 → 21.7 ms (-10%) | 18.2 → 17.4 ms (-5%) |
+| Earth at 3 radii | 225 → 129 ms (-43%) | 12.3 → 10.8 ms (-12%) | 10.1 → 9.3 ms (-8%) |
+| Titan at 4.2 radii | 505 → 408 ms (-19%) | 16.1 → 13.7 ms (-15%) | 17.6 → 15.5 ms (-12%) |
+| Venus at 1.5 radii | 300 → 139 ms (-54%) | 16.1 → 13.5 ms (-16%) | 11.5 → 11.0 ms (-4%) |
+| Mars at 1.5 radii | 715 → 569 ms (-20%) | 31.1 → 27.7 ms (-11%) | 23.6 → 22.8 ms (-3%) |
+| Jupiter's moons (no atmosphere) | 27.0 → 27.1 ms (0%) | 2.75 → 2.72 ms (-1%) | 4.10 → 4.15 ms (+1%) |
+
+- **Below the bound, and why.** The interior did go; what the dead-code proxy could not see is
+  how much the rim itself costs. At Earth-fill about 190 ms of the limb remains, all of it the
+  annulus's own fragments, each running the ring's taps over both halves of its ray or the
+  handoff band's disc quadrature. By an estimate a tenth of the shell's fragments, the annulus is
+  now most of its cost, and that is exactly the work the Reduced tier (4 nodes, 2 taps) cuts, so
+  the two stack.
+- **No visible change.** Against the shipped sphere, a handful of single pixels on the disc's rim
+  move per view, one by up to 110 codes, and nothing else does. Rotating the shipped sphere 0.7°
+  about its pole, which moves nothing but its facets, moves as many rim pixels by as much: the rim
+  is sensitive to the last bits of the interpolated ray, whatever mesh supplies it. Body icons
+  match to 7 codes. At the ISS, 90 m from the station with farwarp compressing the limb, nothing
+  moves by more than 2 codes at any row count from 6 to 16.
+- **No compile or pipeline cost.** The annulus carries the sphere's vertex attributes, so
+  Forward+ reuses the shader warm-up's pipeline: the surface-compile counter matches the sphere
+  build's, and a position-only annulus, the negative control, adds one. The fragment stage is
+  unchanged, and the Compatibility compile time with it: 7.3 s against 7.7 s.
