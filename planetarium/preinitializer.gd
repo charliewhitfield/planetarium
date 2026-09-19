@@ -62,6 +62,9 @@ func _init() -> void:
 	IVCoreSettings.stroboscope_frames_per_second = 4.5
 	IVCoreSettings.enable_physical_light = true # user Options toggle "Physical Light"
 	IVCoreSettings.apply_gl_compatibility_shadows = false # only ISS self-shadowing. No big loss.
+	# With the line above false there are no shadow maps on the web renderer, so this acts
+	# only on desktop Forward+ - which is where the empty passes cost 20-25 ms a frame.
+	IVCoreSettings.apply_empty_shadow_pass_skip = true
 	
 	if is_web:
 		IVCoreSettings.disable_quit = true

@@ -18,6 +18,7 @@ Under development using Godot 4.7.2.
 
 ### Changed
 * Turned off `IVCoreSettings.apply_gl_compatibility_shadows`, so the Compatibility renderer — and with it the web export — takes one unshadowed light instead of the shadowed multi-light stack. This cuts each lit shader from four GL programs to one, which is a large part of the cold-start shader compile the boot screen reports; what it costs is local shadow maps, in practice the ISS shadowing itself. The analytic ring, eclipse and transit shadows are unaffected.
+* Turned on the Core plugin's new `IVCoreSettings.apply_empty_shadow_pass_skip`, which drops the local shadow passes in any view with no spacecraft or local scene near the camera — 27-30 ms of a frame on weak integrated graphics. With `apply_gl_compatibility_shadows` off above, this acts on desktop Forward+ only.
 * Attribution docs restructured: `IVOYAGER_WORKS.md` is retired and replaced by `IVOYAGER_ASSETS.md`, which documents every distributed asset individually with its own copyright and license; `3RD_PARTY.md` becomes a clean list by copyright holder. README.md updated to match.
 * [Dev ongoing] Sync attribution docs with assets and Core submodule.
 * [Dev ongoing] Updating plugin ivoyager_core with v0.2.1.dev.

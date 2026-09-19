@@ -68,7 +68,7 @@ func get_method_names() -> Array[String]:
 			"get_limb_samples", "set_limb_meter", "set_ring_meter", "set_exposure",
 			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time",
 			"set_shell_visible", "set_shell_param", "set_glow", "set_psf_settings",
-			"get_exposure_skips", "set_exposure_skips"]
+			"get_exposure_skips", "set_exposure_skips", "get_shadow_skips", "set_shadow_skips"]
 
 
 func get_method_summaries() -> Dictionary:
@@ -101,6 +101,8 @@ func get_method_summaries() -> Dictionary:
 		"set_exposure_ceiling": "Override a body's shells.tsv exposure_ceiling / limb_exposure_ceiling cells at runtime ({\"name\": entity_name, \"ceiling\": float, \"limb_only\": bool}); 0.0 removes them.",
 		"get_exposure_skips": "Report what the exposure-driven skips are dropping ({}): the sky pass, and every star magnitude bin with its star count, brightest magnitude, peak sky density and current visibility. A zero-pixel A/B proves nothing unless the mechanism actually fired, and this is what says whether it did.",
 		"set_exposure_skips": "Turn either exposure-driven skip off or on ({\"sky\": bool, \"stars\": bool, \"capture_height\": float}; omit a key to keep it). Off is the un-culled render an A/B diffs against, in ONE app run and so at ONE exposure. capture_height stands in for IVScreenshotManager's off-screen render height, which is otherwise unreachable from a driver; 0.0 clears it. Reports the state back.",
+		"get_shadow_skips": "Report the empty-shadow-pass decision per IVDynamicLight ({}): each light's table intent, live shadow_enabled, reach, cull mask and idle frame count, beside every registered local-shadow participant with its layers, visibility and surface distance. Says whether the mechanism actually fired, which a zero-pixel A/B cannot.",
+		"set_shadow_skips": "Turn the empty-shadow-pass skip off or on for every light ({\"enabled\": bool}); off restores each light's table shadow_enabled, which is the un-skipped render an A/B diffs against, in ONE app run at ONE pose. Reports the state back.",
 	}
 
 
@@ -162,6 +164,10 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 			return _get_exposure_skips()
 		"set_exposure_skips":
 			return _set_exposure_skips(params)
+		"get_shadow_skips":
+			return _get_shadow_skips()
+		"set_shadow_skips":
+			return _set_shadow_skips(params)
 	return {"_error": {"code": ERR_UNKNOWN_METHOD, "message": "Unknown method: %s" % method}}
 
 
@@ -1463,3 +1469,50 @@ func _set_exposure_skips(params: Dictionary) -> Variant:
 		var capture_height: float = capture_var
 		IVStarsVisual.capture_render_height = capture_height
 	return _get_exposure_skips()
+
+
+func _get_shadow_skips() -> Variant:
+	const KM := IVUnits.KM
+	var lights := []
+	for light in _lights:
+		lights.append({
+			"name": String(light.name),
+			"shadow_capable": light._shadow_capable,
+			"skip_enabled": light._skip_empty_shadow_passes,
+			"shadow_enabled": light.shadow_enabled,
+			"reach_km": light.directional_shadow_max_distance / KM,
+			"light_cull_mask": light.light_cull_mask,
+			"idle_shadow_frames": light._idle_shadow_frames,
+			"shared": light._shared.duplicate(),
+		})
+	var camera := IVGlobal.get_tree().root.get_camera_3d()
+	var participants := []
+	for node3d: Node3D in IVDynamicLight._local_shadow_layers:
+		var extent_radius: float = IVDynamicLight._local_shadow_radii[node3d]
+		var distance := INF
+		if camera:
+			distance = (node3d.global_position - camera.global_position).length() - extent_radius
+		participants.append({
+			"name": String(node3d.get_parent().name) if node3d.get_parent() else String(node3d.name),
+			"visual_layers": IVDynamicLight._local_shadow_layers[node3d],
+			"visible": node3d.is_visible_in_tree(),
+			"surface_distance_km": distance / KM,
+		})
+	return {
+		"setting": IVCoreSettings.apply_empty_shadow_pass_skip,
+		"participants": participants,
+		"farwarp_start_km": IVFarwarpManager.farwarp_start / KM,
+		"lights": lights,
+	}
+
+
+func _set_shadow_skips(params: Dictionary) -> Variant:
+	var enabled_var: Variant = params.get("enabled")
+	if typeof(enabled_var) == TYPE_BOOL:
+		var enabled: bool = enabled_var
+		for light in _lights:
+			light._skip_empty_shadow_passes = enabled and light._process_shadow_distances
+			if !enabled:
+				light.shadow_enabled = light._shadow_capable
+				light._idle_shadow_frames = 0
+	return _get_shadow_skips()
