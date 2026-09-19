@@ -200,3 +200,15 @@ iv_display_encode={
 "type": "float",
 "value": 0.0
 }
+iv_atm_gl_first={
+"type": "int",
+"value": 0
+}
+iv_atm_gl_nodes={
+"type": "int",
+"value": 6
+}
+iv_atm_ring_max_taps={
+"type": "int",
+"value": 8
+}

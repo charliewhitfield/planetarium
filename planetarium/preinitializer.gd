@@ -71,9 +71,17 @@ func _init() -> void:
 		#IVCoreSettings.vertecies_per_orbit = 200
 		IVSettingsManager.set_default(&"gui_size", IVCoreSettings.gui_size_settings[&"GUI_LARGE"])
 	
-	if IVGlobal.is_gl_compatibility:
-		pass
-		
+	# The limb shell dominates a frame on weak hardware -- 75-95% of it on an integrated GPU
+	# under Compatibility -- and the Reduced tier cuts a quarter to a third of that for no
+	# visible change (GRAPHICS_PROFILING.md in the Core plugin). Default to it where that
+	# matters, leaving Normal the default on a discrete GPU. The adapter test covers desktop
+	# Forward+ only: under Compatibility the GL driver reports DEVICE_TYPE_OTHER whatever the
+	# part is, so the web -- and any Compatibility session -- is caught by the branch above it.
+	var adapter_type := RenderingServer.get_video_adapter_type()
+	if (IVGlobal.is_gl_compatibility
+			or adapter_type == RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU):
+		IVSettingsManager.set_default(&"atmosphere_quality", 1) # reduced
+
 	# class changes
 	IVCoreInitializer.program_nodes["FullScreenManager"] = IVFullScreenManager
 	IVCoreInitializer.program_refcounteds["WikiManager"] = IVWikiManager
