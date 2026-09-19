@@ -45,6 +45,7 @@ extends IVAssistantTestSuite
 
 var _lights: Array[IVDynamicLight] = []
 var _world_environment: WorldEnvironment
+var _stars_visual: IVStarsVisual
 var _sun_disc_material: ShaderMaterial
 
 
@@ -66,7 +67,8 @@ func get_method_names() -> Array[String]:
 			"poke_sky_radiance", "get_shadow_receivers", "set_exposure_ceiling",
 			"get_limb_samples", "set_limb_meter", "set_ring_meter", "set_exposure",
 			"project_limb_circle", "list_saved_views", "apply_saved_view", "get_render_time",
-			"set_shell_visible", "set_shell_param", "set_glow", "set_psf_settings"]
+			"set_shell_visible", "set_shell_param", "set_glow", "set_psf_settings",
+			"get_exposure_skips", "set_exposure_skips"]
 
 
 func get_method_summaries() -> Dictionary:
@@ -97,6 +99,8 @@ func get_method_summaries() -> Dictionary:
 		"set_psf_settings": "Set IVPSFSettings values at runtime ({\"psf_sigma\": float, \"intensity_scale\": float, \"intensity_gamma\": float, \"intensity_faint_mag\": float, \"color_saturation\": float, \"fov_compensation\": float, \"glare_scale\": float, \"glare_gamma\": float, \"glare_max_px\": float}; omit a key to keep it). One object feeds the catalog field and every body's PSF quad, so a sweep moves them together. Reports every value back.",
 		"set_glow": "Set Environment glow properties at runtime ({\"enabled\": bool, \"intensity\": float, \"strength\": float, \"bloom\": float, \"hdr_threshold\": float, \"hdr_scale\": float, \"hdr_luminance_cap\": float, \"blend_mode\": int, \"levels\": [float x 7]}; omit a key to keep it). Reports every glow property back, so a sweep records the state it measured.",
 		"set_exposure_ceiling": "Override a body's shells.tsv exposure_ceiling / limb_exposure_ceiling cells at runtime ({\"name\": entity_name, \"ceiling\": float, \"limb_only\": bool}); 0.0 removes them.",
+		"get_exposure_skips": "Report what the exposure-driven skips are dropping ({}): the sky pass, and every star magnitude bin with its star count, brightest magnitude, peak sky density and current visibility. A zero-pixel A/B proves nothing unless the mechanism actually fired, and this is what says whether it did.",
+		"set_exposure_skips": "Turn either exposure-driven skip off or on ({\"sky\": bool, \"stars\": bool, \"capture_height\": float}; omit a key to keep it). Off is the un-culled render an A/B diffs against, in ONE app run and so at ONE exposure. capture_height stands in for IVScreenshotManager's off-screen render height, which is otherwise unreachable from a driver; 0.0 clears it. Reports the state back.",
 	}
 
 
@@ -154,6 +158,10 @@ func dispatch(method: String, params: Dictionary) -> Variant:
 			return _set_shell_param(params)
 		"get_rings_geometry":
 			return _get_rings_geometry()
+		"get_exposure_skips":
+			return _get_exposure_skips()
+		"set_exposure_skips":
+			return _set_exposure_skips(params)
 	return {"_error": {"code": ERR_UNKNOWN_METHOD, "message": "Unknown method: %s" % method}}
 
 
@@ -535,6 +543,9 @@ func _collect(node: Node) -> void:
 	elif node is WorldEnvironment:
 		var world_environment: WorldEnvironment = node
 		_world_environment = world_environment
+	elif node is IVStarsVisual:
+		var stars_visual: IVStarsVisual = node
+		_stars_visual = stars_visual
 	for child in node.get_children():
 		_collect(child)
 
@@ -1386,3 +1397,69 @@ func _set_psf_settings(params: Dictionary) -> Variant:
 	for name in names:
 		report[String(name)] = psf_settings.get(name)
 	return report
+
+
+# What IVWorldEnvironment and IVStarsVisual are currently NOT drawing because the
+# compensating camera has metered it below one display code, plus the per-bin numbers the
+# cull decides on. Reads their private members on purpose: a probe exists to reach what the
+# public API does not expose, and a rename in Core breaks this and nothing else reports it.
+func _get_exposure_skips() -> Variant:
+	var sky := {}
+	if _world_environment is IVWorldEnvironment:
+		var world_environment: IVWorldEnvironment = _world_environment
+		sky = {
+			"enabled": world_environment.skip_invisible_starmap,
+			"skipped": world_environment._starmap_skipped,
+			"background_mode": world_environment.environment.background_mode,
+		}
+	var stars := {}
+	if _stars_visual:
+		var bins := []
+		var i := 0
+		var n_bins := _stars_visual.get_bin_count()
+		while i < n_bins:
+			var bin_visual := _stars_visual._bin_visuals[i]
+			bins.append({
+				"name": String(bin_visual.name),
+				"stars": _stars_visual._bin_star_counts[i],
+				"brightest_magnitude": _stars_visual._bin_brightest_magnitudes[i],
+				"peak_density_per_steradian": _stars_visual._bin_peak_densities[i],
+				"visible": bin_visual.visible,
+			})
+			i += 1
+		stars = {
+			"enabled": _stars_visual.cull_invisible_bins,
+			"drawn_bins": _stars_visual.get_drawn_bin_count(),
+			"capture_render_height": IVStarsVisual.capture_render_height,
+			"bins": bins,
+		}
+	return {
+		"one_display_code_linear": IVPhotometry.ONE_DISPLAY_CODE_LINEAR,
+		"exposure": IVExposureManager.exposure,
+		"physical_active": IVExposureManager.physical_active,
+		"sky": sky,
+		"stars": stars,
+	}
+
+
+func _set_exposure_skips(params: Dictionary) -> Variant:
+	var sky_var: Variant = params.get("sky")
+	if typeof(sky_var) == TYPE_BOOL:
+		if not _world_environment is IVWorldEnvironment:
+			return {"_error": {"code": ERR_UNAVAILABLE, "message": "No IVWorldEnvironment"}}
+		var world_environment: IVWorldEnvironment = _world_environment
+		var sky_enabled: bool = sky_var
+		world_environment.skip_invisible_starmap = sky_enabled
+	var stars_var: Variant = params.get("stars")
+	if typeof(stars_var) == TYPE_BOOL:
+		if !_stars_visual:
+			return {"_error": {"code": ERR_UNAVAILABLE, "message": "No IVStarsVisual"}}
+		var stars_enabled: bool = stars_var
+		_stars_visual.cull_invisible_bins = stars_enabled
+	# Standing in for IVScreenshotManager, which sets this around an off-screen capture and
+	# clears it after -- a window is the only render height a driver can otherwise reach.
+	var capture_var: Variant = params.get("capture_height")
+	if typeof(capture_var) == TYPE_FLOAT:
+		var capture_height: float = capture_var
+		IVStarsVisual.capture_render_height = capture_height
+	return _get_exposure_skips()

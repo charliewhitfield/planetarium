@@ -121,7 +121,7 @@ Intel figures for the atmosphere views come from runs in the driver's normal sta
 | 6 | **MSAA** (existing): off / 2x / 4x / 8x, default 2x | Off: -5 to -13%; 4x: +9 to +11% | Off: -5 to -23%; 4x: +3 to +15% | Stair-stepped orbit lines; the dense ring-plane orbits shimmer. Planet rims are already anti-aliased by the shaders' own PSF. | Keep. Consider Off as the web default. |
 | 7 | **Glow**: on / off. Runtime. | -12 to -16% in light views; ~0 in atmosphere views | -1 to -16%; Forward+ -5 to -29% | Small. No bloom on blown extended sources (up to 58 codes beside a bright limb). On Compatibility, off also restores the dimmest codes. | Add. |
 | 8 | **Star glare wing**: full / off. Runtime. | -11 to -25% (star-heavy views) | -15 to -16%; Forward+ -24% | No change in lit-body views. In dark-sky views half the sky moves (mean 10.5 codes): halos go, and the faint end moves about 3 mag brighter. | Fold into a "Star field" setting with catalogue depth. |
-| 9 | **Milky Way background**: on / off. Runtime. | -10 to -17% | -5 to -13% | None in any lit-body view, where exposure already puts it below one code. In dark-sky views the Milky Way goes (8 codes on 62% of pixels). | Skip it automatically below one code (see *Free wins*). A user toggle is optional. |
+| 9 | **Milky Way background**: on / off. Runtime. | -10 to -17% | -5 to -13% | None in any lit-body view, where exposure already puts it below one code. In dark-sky views the Milky Way goes (8 codes on 62% of pixels). | Now skipped automatically below half a code (see the addendum). A user toggle is optional. |
 | 10 | **Cloud decks**: on / off. Runtime. | -6 to -7% (Earth views) | -22 to -26%; Forward+ -22 to -38% | Large: Earth and Neptune lose their clouds (19% of pixels in an Earth view). | Lowest tier only. |
 | 11 | **Frame-rate cap**: 30 / 60 / uncapped. Runtime. | Up to -50% energy when a frame beats the cap | Same | Motion smoothness only. No help when a frame already misses the cap. | Add for laptops and batteries. It's a one-liner. |
 
@@ -329,8 +329,8 @@ These need no option. Each removes work whose result never reaches the screen.
 | Change | Measured basis | Expected relief |
 |---|---|---|
 | **Limb shell as a camera-facing annulus**, not a full sphere (done; see addendum) | A dead-code limb body costs the same as a hidden shell. A discarding one costs about 1/3 of the full shader. | Measured on the iGPU: Earth-fill -37%, Venus close -54%, Titan and Mars close -19 to -20% |
-| **Skip the sky pass** when the panorama x exposure is below one display code | Milky Way off changes zero pixels in every lit-body view | -10 to -17% (iGPU), -5 to -13% (GTX) in those views |
-| **Skip star bins** the current exposure renders below one code; split the star mesh by bin | Cutting to V 11 changes zero pixels in lit-body views, yet stars cost 13-28% there | -13 to -28% in lit-body views |
+| **Skip the sky pass** when the panorama x exposure is below half a display code (done; see addendum) | Milky Way off changes zero pixels in every lit-body view | -10 to -17% (iGPU), -5 to -13% (GTX) in those views |
+| **Skip star bins** the current exposure renders below half a code; split the star mesh by bin (done; see addendum) | Cutting to V 11 changes zero pixels in lit-body views, yet stars cost 13-28% there | -13 to -28% in lit-body views |
 | **Sphere 128x64**, or distance LOD | 128x64 measured indistinguishable | -10 to -27% |
 | **Forward+: skip shadow passes** when no local caster is in range | An empty 8192 atlas costs ~20-25 ms per iGPU frame | -27 to -39% (iGPU Forward+) |
 | **Sunspot LOD** by disc size | Sunspots are 36% of a Sun close-up | Near the Sun only |
@@ -417,8 +417,10 @@ or the web it would pick Compatibility, Reduced atmospheres, 75% scale on hi-DPI
   (Earth) and ~900 ms (Titan). Where a scene's baseline drifted mid-run, rows after the drift are
   excluded.
 - **Estimates, not measurements.** The browser itself was not measured, so ANGLE stands in for
-  Chrome. The exposure-skip relief figures are bounds from proxies rather than implementations;
-  the annulus's were too, and have since been measured below their bound (see the addendum).
+  Chrome. The exposure skips are now built and verified for correctness, but
+  their relief has so far been measured only on the GTX; the iGPU figures in *Free wins*
+  remain bounds from proxies (see the addendum). The annulus's were too, and have since
+  been measured below their bound.
   The Mobile renderer was not tested.
 
 
@@ -550,3 +552,72 @@ The poses are close to, not identical with, the eight views above.
   Forward+ reuses the shader warm-up's pipeline: the surface-compile counter matches the sphere
   build's, and a position-only annulus, the negative control, adds one. The fragment stage is
   unchanged, and the Compatibility compile time with it: 7.3 s against 7.7 s.
+
+
+## Addendum: the exposure skips, built and verified
+
+Built into ivoyager_core on 2026-09-19: under physical light the background panorama stops
+being drawn, and each star magnitude bin stops being submitted, once the compensating camera
+has metered it below **half** a display code. The star field is split into one mesh per
+magnitude bin to make the second possible. The model, its derivation and its constants are
+in *Skipping what the camera has metered away* in the Core's PHOTOMETRIC_MODEL.md; what
+follows is only what was measured.
+
+**Half a code, not one.** Half is the 8-bit rounding boundary, and it is what turns the
+promise from a measured one into a proved one: in the sRGB toe the encode is linear, so
+removing a contribution under half a code moves the rounded result by at most one code at
+any pose. Exact bit-identity is not available at any positive threshold — removing added
+light can always carry some pixel across a boundary.
+
+### Correctness
+
+Captured at a frozen exposure with HUDs hidden, each mechanism forced off and then on within
+one app run, 1920x1080, Forward+ on the GTX 1650 Ti.
+
+| View | Metered exposure | What was skipped | Pixels changed |
+|---|---:|---|---|
+| Earth at 3 radii | 5.2e-7 | sky, and 13 of 24 bins | **0** of 2.07 M |
+| Saturn at 45° | 2.8e-5 | sky, and 4 of 24 bins | **0** of 2.07 M |
+| Saturn at 45°, star cull only | 2.8e-5 | 4 of 24 bins | **0** of 2.07 M |
+| Jupiter's moons | 3.5e-4 | sky only (no bin qualified) | 337 (0.016 %), all by exactly 1 code |
+
+Jupiter's is the marginal case and the one worth understanding: the sky sat at 0.099 of a
+code, just under the threshold, and where faint stars already lit a pixel the removed sky had
+been tipping it over a rounding boundary. It is the predicted worst case, not a defect, and
+it is bounded at one code.
+
+### Where each mechanism engages
+
+An EV sweep at a fixed pose, reading the decision back from the app rather than inferring it:
+
+| Exposure EV | Sky | Bins drawn |
+|---:|---|---:|
+| +1.0 (dark-adapted rest) | drawn | 24 / 24 |
+| −9.0 | drawn | 24 / 24 |
+| −10.0 | skipped | 24 / 24 |
+| −14.0 | skipped | 21 / 24 |
+| −16.0 | skipped | 18 / 24 |
+| −20.0 | skipped | 12 / 24 |
+
+The sky crosses at exposure 1.75e-3, which is where the shipped anchor puts it to the stop.
+Nothing is skipped at rest, so the dark-adapted sky is untouched — and with physical light
+off, where exposure is pinned at rest, neither predicate can fire at all.
+
+At Earth the cull leaves 11 of 24 bins, which is about 44,000 of 2,551,210 stars still
+submitted: 98 % of the field's vertex work gone in the view that needs it most.
+
+### Relief, so far
+
+| View | Renderer / GPU | Off | On | Change |
+|---|---|---:|---:|---:|
+| Jupiter's moons (sky only) | Forward+, GTX 1650 Ti | 4.76 ms | 4.59 / 4.44 ms | −3 to −7 % |
+| Earth at 3 radii | Forward+, GTX 1650 Ti | 10.0 / 10.4 ms | 9.9 / 10.7 ms | within noise |
+
+Medians of 15 frames, A/B interleaved, sim paused. Earth is atmosphere-bound on this GPU, so
+neither skip shows there even though both fire — which is the expected shape, not a
+disappointment: the star field and the sky are a small share of a frame the limb dominates.
+
+**The figures this change exists for are not measured yet.** The −10 to −17 % (sky) and
+−13 to −28 % (stars) in the *Free wins* table are for the Intel iGPU under Compatibility, the
+web app's case, and reaching that GPU needs the `NvOptimusEnablement`-cleared executable copy
+described under *How this was measured*. That run is outstanding.
