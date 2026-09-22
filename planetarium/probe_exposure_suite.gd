@@ -218,14 +218,19 @@ func _get_rings_geometry() -> Variant:
 		var material := rings.get_surface_override_material(0) as ShaderMaterial
 		var plane_fraction: Variant = (material.get_shader_parameter(
 				&"plane_light_fraction") if material else null)
-		# Render-buffer pixels, as IVRings decides the crossfade in.
-		var viewport := IVGlobal.get_viewport()
-		var render_height := viewport.get_visible_rect().size.y * viewport.scaling_3d_scale
-		var pixel_angle := 2.0 / maxf(render_height
-				* absf(camera.get_camera_projection().y.y), 1e-9)
 		# Read through get() so this suite still runs against a build without the
 		# plane-to-point handoff -- which is exactly the build an A/B compares to.
 		var flux_factor: Variant = body.get(&"rings_psf_flux_factor")
+		# Render-buffer pixels, as IVRings decides the crossfade in: the taller of the
+		# window's and the one a capture has registered (through get(), as above).
+		var viewport := IVGlobal.get_viewport()
+		var render_height := viewport.get_visible_rect().size.y * viewport.scaling_3d_scale
+		var capture_height_variant: Variant = rings.get(&"capture_render_height")
+		if typeof(capture_height_variant) == TYPE_FLOAT:
+			var capture_height: float = capture_height_variant
+			render_height = maxf(render_height, capture_height)
+		var pixel_angle := 2.0 / maxf(render_height
+				* absf(camera.get_camera_projection().y.y), 1e-9)
 		var profile_variant: Variant = rings.get(&"_psf_tau")
 		var profile_bins := -1
 		if typeof(profile_variant) == TYPE_PACKED_FLOAT64_ARRAY:
@@ -250,6 +255,7 @@ func _get_rings_geometry() -> Variant:
 			"outer_radius_m": rings.outer_radius,
 			"texture_inner_radius_m": rings.texture_inner_radius,
 			"texture_outer_radius_m": rings.texture_outer_radius,
+			"render_height": render_height,
 			"outer_pixels": rings.outer_radius / (camera_distance * pixel_angle),
 			"plane_light_fraction": plane_fraction,
 			"psf_flux_factor": flux_factor,
