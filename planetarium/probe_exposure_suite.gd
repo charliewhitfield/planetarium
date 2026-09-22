@@ -97,7 +97,7 @@ func get_method_summaries() -> Dictionary:
 		"set_shell_param": "Set one shader parameter on one shell's material ({\"name\": entity_name, \"shell\": int, \"param\": String, \"value\": float}); sweeps a candidate in ONE app run instead of one run per value.",
 		"set_shell_visible": "Show or hide one IVShellsModel shell ({\"name\": entity_name, \"shell\": int, \"visible\": bool}); shell 0 is the surface, 1..N its overlays. Decomposes a rendered pixel into the shells that built it.",
 		"set_psf_settings": "Set IVPSFSettings values at runtime ({\"psf_sigma\": float, \"intensity_scale\": float, \"intensity_gamma\": float, \"intensity_faint_mag\": float, \"color_saturation\": float, \"fov_compensation\": float, \"glare_scale\": float, \"glare_gamma\": float, \"glare_max_px\": float}; omit a key to keep it). One object feeds the catalog field and every body's PSF quad, so a sweep moves them together. Reports every value back.",
-		"set_glow": "Set Environment glow properties at runtime ({\"enabled\": bool, \"intensity\": float, \"strength\": float, \"bloom\": float, \"hdr_threshold\": float, \"hdr_scale\": float, \"hdr_luminance_cap\": float, \"blend_mode\": int, \"levels\": [float x 7]}; omit a key to keep it). Reports every glow property back, so a sweep records the state it measured.",
+		"set_glow": "Set Environment glow properties at runtime ({\"enabled\": bool, \"intensity\": float, \"strength\": float, \"bloom\": float, \"hdr_threshold\": float, \"hdr_scale\": float, \"hdr_luminance_cap\": float, \"blend_mode\": int, \"levels\": [float x 7]}; omit a key to keep it). Levels are as authored for the reference height, which IVWorldEnvironment shifts to the render height from the next frame. Reports every glow property back (levels as applied, authored_levels as set), so a sweep records the state it measured.",
 		"set_exposure_ceiling": "Override a body's shells.tsv exposure_ceiling / limb_exposure_ceiling cells at runtime ({\"name\": entity_name, \"ceiling\": float, \"limb_only\": bool}); 0.0 removes them.",
 		"get_exposure_skips": "Report what the exposure-driven skips are dropping ({}): the sky pass, and every star magnitude bin with its star count, brightest magnitude, peak sky density and current visibility. A zero-pixel A/B proves nothing unless the mechanism actually fired, and this is what says whether it did.",
 		"set_exposure_skips": "Turn either exposure-driven skip off or on ({\"sky\": bool, \"stars\": bool, \"capture_height\": float}; omit a key to keep it). Off is the un-culled render an A/B diffs against, in ONE app run and so at ONE exposure. capture_height stands in for IVScreenshotManager's off-screen render height, which is otherwise unreachable from a driver; 0.0 clears it. Reports the state back.",
@@ -1357,19 +1357,32 @@ func _set_glow(params: Dictionary) -> Variant:
 		if levels.size() != 7:
 			return {"_error": {"code": ERR_INVALID_PARAMS,
 					"message": "'levels' must have 7 entries"}}
+		var new_levels: Array[float] = []
 		for i in 7:
 			var level_var: Variant = levels[i]
 			if typeof(level_var) != TYPE_FLOAT and typeof(level_var) != TYPE_INT:
 				return {"_error": {"code": ERR_INVALID_PARAMS,
 						"message": "'levels' entries must be numbers"}}
 			var level: float = level_var
+			new_levels.append(level)
+		# IVWorldEnvironment shifts its authored levels by render height and would overwrite a
+		# direct write the next time the height changed.
+		if _world_environment is IVWorldEnvironment:
+			var iv_world_environment: IVWorldEnvironment = _world_environment
+			iv_world_environment.set_glow_levels(new_levels)
+		else:
 			# Environment's own index is 0-based (MAX_GLOW_LEVELS = 7), where the inspector
 			# labels the same levels 1-7; i + 1 here errored on the last one and skipped the
 			# first.
-			environment.set_glow_level(i, level)
+			for i in 7:
+				environment.set_glow_level(i, new_levels[i])
 	var reported_levels := []
 	for i in 7:
 		reported_levels.append(environment.get_glow_level(i))
+	var authored_levels: Array = reported_levels
+	if _world_environment is IVWorldEnvironment:
+		var iv_world_environment: IVWorldEnvironment = _world_environment
+		authored_levels = iv_world_environment.get_glow_levels()
 	return {
 		"ok": true,
 		"enabled": environment.glow_enabled,
@@ -1382,6 +1395,7 @@ func _set_glow(params: Dictionary) -> Variant:
 		"hdr_luminance_cap": environment.glow_hdr_luminance_cap,
 		"blend_mode": environment.glow_blend_mode,
 		"levels": reported_levels,
+		"authored_levels": authored_levels,
 	}
 
 
