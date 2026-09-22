@@ -218,8 +218,10 @@ func _get_rings_geometry() -> Variant:
 		var material := rings.get_surface_override_material(0) as ShaderMaterial
 		var plane_fraction: Variant = (material.get_shader_parameter(
 				&"plane_light_fraction") if material else null)
-		var view_height := IVGlobal.get_viewport().get_visible_rect().size.y
-		var pixel_angle := 2.0 / maxf(view_height
+		# Render-buffer pixels, as IVRings decides the crossfade in.
+		var viewport := IVGlobal.get_viewport()
+		var render_height := viewport.get_visible_rect().size.y * viewport.scaling_3d_scale
+		var pixel_angle := 2.0 / maxf(render_height
 				* absf(camera.get_camera_projection().y.y), 1e-9)
 		# Read through get() so this suite still runs against a build without the
 		# plane-to-point handoff -- which is exactly the build an A/B compares to.
