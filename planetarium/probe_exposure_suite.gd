@@ -222,9 +222,12 @@ func _get_rings_geometry() -> Variant:
 		# plane-to-point handoff -- which is exactly the build an A/B compares to.
 		var flux_factor: Variant = body.get(&"rings_psf_flux_factor")
 		# Render-buffer pixels, as IVRings decides the crossfade in: the taller of the
-		# window's and the one a capture has registered (through get(), as above).
-		var viewport := IVGlobal.get_viewport()
-		var render_height := viewport.get_visible_rect().size.y * viewport.scaling_3d_scale
+		# window's and the one a capture has registered (through get(), as above). Taken
+		# from the window's own pixels, which a display scale makes finer than its visible
+		# rect; inline rather than IVGraphicsManager.get_render_size(), which an older
+		# build lacks.
+		var window := IVGlobal.get_window()
+		var render_height := floorf(window.size.y * window.scaling_3d_scale)
 		var capture_height_variant: Variant = rings.get(&"capture_render_height")
 		if typeof(capture_height_variant) == TYPE_FLOAT:
 			var capture_height: float = capture_height_variant

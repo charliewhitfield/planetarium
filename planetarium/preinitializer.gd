@@ -69,7 +69,6 @@ func _init() -> void:
 	if is_web:
 		IVCoreSettings.disable_quit = true
 		#IVCoreSettings.vertecies_per_orbit = 200
-		IVSettingsManager.set_default(&"gui_size", IVCoreSettings.gui_size_settings[&"GUI_LARGE"])
 	
 	# The limb shell dominates a frame on weak hardware -- 75-95% of it on an integrated GPU
 	# under Compatibility -- and the Reduced tier cuts a quarter to a third of that for no
