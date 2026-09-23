@@ -84,13 +84,13 @@ func _init() -> void:
 	# On an integrated GPU, Compatibility runs 1.4-8x faster than Forward+, and the limb
 	# shell is 75-95% of a frame with air, which the Reduced tier cuts by a quarter to a
 	# third for no visible change (GRAPHICS_PROFILING.md in the Core plugin). A discrete
-	# GPU keeps Forward+ and Normal. The adapter test covers Forward+ only: under
-	# Compatibility the GL driver reports DEVICE_TYPE_OTHER whatever the part is, so any
-	# Compatibility session -- the web, or a desktop run already restarted into it -- is
-	# caught by the first test instead. That is what keeps an integrated GPU in
-	# Compatibility after its first run.
-	if (IVGlobal.is_gl_compatibility
-			or IVGlobal.video_adapter_type == RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU):
+	# GPU keeps Forward+ and Normal, in either renderer. A GPU of unknown type is taken
+	# as weak: only a Compatibility run can fail to know it, which on the desktop means
+	# one that has never run Forward+ here, and on the web means every run.
+	var video_adapter_type := IVGlobal.video_adapter_type
+	if (video_adapter_type == RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU
+			or (video_adapter_type == RenderingDevice.DEVICE_TYPE_OTHER
+			and IVGlobal.is_gl_compatibility)):
 		IVSettingsManager.set_default(&"atmosphere_quality", 1) # reduced
 		IVSettingsManager.set_default(&"renderer", 1) # compatibility
 	if IVGraphicsManager.can_set_renderer():
