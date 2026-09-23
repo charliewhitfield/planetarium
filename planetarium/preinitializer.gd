@@ -26,13 +26,24 @@ extends RefCounted
 ## state once core init signals fire. Hooked in via
 ## [code]res://ivoyager_override.cfg[/code]'s [code]preinitializer[/code]
 ## key, which causes the core plugin to instantiate this RefCounted before
-## any other program object.
+## any other program object.[br][br]
+##
+## On desktop, a run whose renderer differs from the [code]renderer[/code] user
+## setting (e.g. the first run on integrated graphics, which defaults to
+## Compatibility) restarts itself into it before the rest of init; see [constant
+## KEEP_RENDERER_ARG] to prevent that.
 
 ## Whether to use threads for sim work. Set [code]false[/code] for debugging.
 const USE_THREADS := true # set false for debugging
 ## When [code]true[/code], threads are disabled in web exports for browser
 ## compatibility (overrides [constant USE_THREADS] when running in a browser).
 const DISABLE_THREADS_IF_WEB := true # override for browser compatibility
+## Command-line user argument (after [code]++[/code]) that keeps the renderer a run
+## started with. The renderer restart passes it, so a restarted run never restarts
+## again. Pass it for a run that picks its GPU on the command line, e.g.
+## [code]--gpu-index[/code] for an integrated GPU under Forward+: without it, that
+## run restarts into Compatibility and leaves Compatibility for every later run.
+const KEEP_RENDERER_ARG := "--keep-renderer"
 #const VERBOSE_GLOBAL_SIGNALS := false
 #const VERBOSE_STATEMANAGER_SIGNALS := false
 
@@ -62,24 +73,28 @@ func _init() -> void:
 	IVCoreSettings.stroboscope_frames_per_second = 4.5
 	IVCoreSettings.enable_physical_light = true # user Options toggle "Physical Light"
 	IVCoreSettings.apply_gl_compatibility_shadows = false # only ISS self-shadowing. No big loss.
-	# With the line above false there are no shadow maps on the web renderer, so this acts
-	# only on desktop Forward+ - which is where the empty passes cost 20-25 ms a frame.
+	# With the line above false there are no shadow maps under Compatibility, so this acts
+	# only on Forward+ - which is where the empty passes cost 20-25 ms a frame.
 	IVCoreSettings.apply_empty_shadow_pass_skip = true
 	
 	if is_web:
 		IVCoreSettings.disable_quit = true
 		#IVCoreSettings.vertecies_per_orbit = 200
 	
-	# The limb shell dominates a frame on weak hardware -- 75-95% of it on an integrated GPU
-	# under Compatibility -- and the Reduced tier cuts a quarter to a third of that for no
-	# visible change (GRAPHICS_PROFILING.md in the Core plugin). Default to it where that
-	# matters, leaving Normal the default on a discrete GPU. The adapter test covers desktop
-	# Forward+ only: under Compatibility the GL driver reports DEVICE_TYPE_OTHER whatever the
-	# part is, so the web -- and any Compatibility session -- is caught by the branch above it.
-	var adapter_type := RenderingServer.get_video_adapter_type()
+	# On an integrated GPU, Compatibility runs 1.4-8x faster than Forward+, and the limb
+	# shell is 75-95% of a frame with air, which the Reduced tier cuts by a quarter to a
+	# third for no visible change (GRAPHICS_PROFILING.md in the Core plugin). A discrete
+	# GPU keeps Forward+ and Normal. The adapter test covers Forward+ only: under
+	# Compatibility the GL driver reports DEVICE_TYPE_OTHER whatever the part is, so any
+	# Compatibility session -- the web, or a desktop run already restarted into it -- is
+	# caught by the first test instead. That is what keeps an integrated GPU in
+	# Compatibility after its first run.
 	if (IVGlobal.is_gl_compatibility
-			or adapter_type == RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU):
+			or IVGlobal.video_adapter_type == RenderingDevice.DEVICE_TYPE_INTEGRATED_GPU):
 		IVSettingsManager.set_default(&"atmosphere_quality", 1) # reduced
+		IVSettingsManager.set_default(&"renderer", 1) # compatibility
+	if IVGraphicsManager.can_set_renderer():
+		IVSettingsManager.initialized.connect(_restart_into_renderer_setting)
 
 	# class changes
 	IVCoreInitializer.program_nodes["FullScreenManager"] = IVFullScreenManager
@@ -100,6 +115,40 @@ func _init() -> void:
 	options_popup.add_option(&"LABEL_TIME", &"LABEL_TERRESTRIAL_TIME_CLOCK",
 			&"terrestrial_time_clock")
 	options_popup.option_tooltips[&"terrestrial_time_clock"] = &"HINT_TERRESTRIAL_TIME_CLOCK"
+
+
+# Godot fixes the renderer at engine start, so a run whose renderer setting has come to
+# differ -- above all a first run whose default the adapter test changed -- restarts into
+# it, before init builds anything.
+func _restart_into_renderer_setting() -> void:
+	if KEEP_RENDERER_ARG in OS.get_cmdline_user_args():
+		return
+	var running_method := RenderingServer.get_current_rendering_method()
+	var configured_method: String = ProjectSettings.get_setting_with_override(
+			&"rendering/renderer/rendering_method")
+	if running_method != configured_method:
+		return # the command line, or the engine's own fallback, chose this renderer
+	var renderer: int = IVSettingsManager.get_setting(&"renderer")
+	var rendering_method := IVGraphicsManager.get_rendering_method(renderer)
+	if rendering_method == running_method:
+		return
+	var error := IVGraphicsManager.write_rendering_method(rendering_method)
+	if error != OK:
+		push_error("Could not write the renderer to the project settings override: "
+				+ error_string(error))
+		return
+	print("Restarting with renderer %s" % rendering_method)
+	IVCoreInitializer.init_sequence.clear() # ends init after this step
+	var arguments := OS.get_cmdline_args()
+	if !OS.has_feature("template"):
+		# The engine consumes --path, but a run that isn't an export needs it back.
+		arguments.append("--path")
+		arguments.append(ProjectSettings.globalize_path("res://"))
+	arguments.append("++")
+	arguments.append_array(OS.get_cmdline_user_args())
+	arguments.append(KEEP_RENDERER_ARG)
+	OS.set_restart_on_exit(true, arguments)
+	IVGlobal.get_tree().quit()
 
 
 func _on_core_init_program_objects_instantiated() -> void:
