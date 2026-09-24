@@ -19,7 +19,6 @@ config/version="0.2.1.dev"
 run/main_scene="uid://mcxrmcs1puig"
 config/project_settings_override="user://override.cfg"
 config/features=PackedStringArray("4.7")
-run/max_fps=59
 boot_splash/bg_color=Color(0, 0, 0, 1)
 boot_splash/show_image=false
 boot_splash/stretch_mode=0
