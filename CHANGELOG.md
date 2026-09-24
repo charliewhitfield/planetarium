@@ -23,6 +23,7 @@ Under development using Godot 4.7.2.
 * Enabled the Core plugin's new "Renderer" Option by naming `user://override.cfg` as the project settings override, and default it to Compatibility on integrated graphics, where a first run that starts in Forward+ restarts itself once into it. User argument `--keep-renderer` prevents the restart.
 * Removed the 59 fps cap (`application/run/max_fps`), a workaround for the Core plugin's old SubViewport IVFragmentIdentifier that no longer exists. The Core plugin's new "Frame Rate Cap" Option now sets the rate, uncapped by default.
 * The web export no longer defaults GUI Size to Large, which stood in for the screen scale that the Core plugin's new display scale now applies on every platform.
+* Panel margins, separations and spacers follow GUI Size, through the Core plugin's new IVControlModSpacing and its IVControlModResizable.
 * Attribution docs restructured: `IVOYAGER_WORKS.md` is retired and replaced by `IVOYAGER_ASSETS.md`, which documents every distributed asset individually with its own copyright and license; `3RD_PARTY.md` becomes a clean list by copyright holder. README.md updated to match.
 * [Dev ongoing] Sync attribution docs with assets and Core submodule.
 * [Dev ongoing] Updating plugin ivoyager_core with v0.2.1.dev.

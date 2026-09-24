@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://dj4ammselobqx" path="res://planetarium/gui/huds_panel.gd" id="1"]
 [ext_resource type="PackedScene" uid="uid://bx22jigtdb8iw" path="res://addons/ivoyager_core/ui_widgets/huds_box.tscn" id="2_k0j0v"]
 [ext_resource type="PackedScene" uid="uid://bkcj6agxxgfw" path="res://addons/ivoyager_core/ui_components/control_mod_resizable.tscn" id="4_k0j0v"]
+[ext_resource type="PackedScene" uid="uid://cimxq7ent5esq" path="res://addons/ivoyager_core/ui_components/control_mod_spacing.tscn" id="5_spcng"]
 
 [node name="HUDsPanel" type="PanelContainer" unique_id=38713050]
 anchors_preset = 3
@@ -29,3 +30,5 @@ layout_mode = 2
 
 [node name="ControlModResizable" parent="." unique_id=1022628023 instance=ExtResource("4_k0j0v")]
 base_size = Vector2(350, 0)
+
+[node name="ControlModSpacing" parent="MarginContainer" instance=ExtResource("5_spcng")]

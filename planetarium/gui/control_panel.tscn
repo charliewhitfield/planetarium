@@ -51,7 +51,6 @@ layout_mode = 2
 size_flags_horizontal = 0
 
 [node name="Spacer" type="Control" parent="VBox/HBox1" unique_id=2102888047]
-custom_minimum_size = Vector2(15, 0)
 layout_mode = 2
 
 [node name="LatLongLabel" parent="VBox/HBox1" unique_id=1005076823 instance=ExtResource("10")]
@@ -163,3 +162,6 @@ layout_mode = 2
 
 [node name="ControlModResizable" parent="." unique_id=983916401 instance=ExtResource("17_jbnqr")]
 base_size = Vector2(600, 0)
+
+[node name="ControlModResizable" parent="VBox/HBox1/Spacer" instance=ExtResource("17_jbnqr")]
+base_size = Vector2(15, 0)

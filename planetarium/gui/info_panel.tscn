@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://dglsn48wnive"]
+[gd_scene load_steps=6 format=3 uid="uid://dglsn48wnive"]
 
 [ext_resource type="PackedScene" uid="uid://dcy30ki8dt6lw" path="res://addons/ivoyager_core/ui_widgets/selection_data.tscn" id="3_krqkh"]
 [ext_resource type="Script" uid="uid://dwsajkolfrkre" path="res://planetarium/gui/info_panel.gd" id="5"]
 [ext_resource type="PackedScene" uid="uid://bkcj6agxxgfw" path="res://addons/ivoyager_core/ui_helpers/control_mod_resizable.tscn" id="5_krqkh"]
 [ext_resource type="PackedScene" uid="uid://dbmmj34clrl2a" path="res://addons/ivoyager_core/ui_widgets/selection_wiki_link.tscn" id="10"]
+[ext_resource type="PackedScene" uid="uid://cimxq7ent5esq" path="res://addons/ivoyager_core/ui_components/control_mod_spacing.tscn" id="6_spcng"]
 
 [node name="InfoPanel" type="PanelContainer"]
 offset_right = 334.0
@@ -46,3 +47,5 @@ layout_mode = 2
 base_size = Vector2(390, -1)
 resize_again_delay = 2
 panel_under_spacing = 50.0
+
+[node name="ControlModSpacing" parent="MarginContainer" instance=ExtResource("6_spcng")]
