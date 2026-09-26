@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3 uid="uid://bevu554s76x0f"]
+[gd_scene format=3 uid="uid://bevu554s76x0f"]
 
 [ext_resource type="Script" uid="uid://cnyglo7c86jmi" path="res://planetarium/gui/menu_panel.gd" id="1"]
 [ext_resource type="PackedScene" uid="uid://cvv4u4ctix3v5" path="res://addons/ivoyager_core/ui_widgets/full_screen_button.tscn" id="2_spw6t"]
@@ -7,24 +7,20 @@
 [ext_resource type="PackedScene" uid="uid://dqwafuo72wscj" path="res://addons/ivoyager_core/ui_widgets/link_label.tscn" id="5"]
 [ext_resource type="PackedScene" uid="uid://dcw1843unaohr" path="res://addons/ivoyager_core/ui_widgets/quit_button.tscn" id="5_caym3"]
 [ext_resource type="PackedScene" uid="uid://bkokwngymmnyk" path="res://addons/ivoyager_core/ui_widgets/version_label.tscn" id="6"]
-[ext_resource type="PackedScene" uid="uid://bkcj6agxxgfw" path="res://addons/ivoyager_core/ui_helpers/control_mod_resizable.tscn" id="9_xhnrs"]
+[ext_resource type="PackedScene" uid="uid://bkcj6agxxgfw" path="res://addons/ivoyager_core/ui_components/control_mod_resizable.tscn" id="9_xhnrs"]
 [ext_resource type="PackedScene" uid="uid://cimxq7ent5esq" path="res://addons/ivoyager_core/ui_components/control_mod_spacing.tscn" id="10_spcng"]
 
 [node name="MenuPanel" type="PanelContainer"]
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -108.0
-offset_bottom = 182.0
+theme_type_variation = &"FloatingPanel"
 script = ExtResource("1")
 
 [node name="MarginContainer" type="MarginContainer" parent="."]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 25
-theme_override_constants/margin_right = 25
-theme_override_constants/margin_bottom = 10
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
 
 [node name="VBox" type="VBoxContainer" parent="MarginContainer"]
 layout_mode = 2
@@ -83,8 +79,6 @@ base_size = Vector2(0, 4)
 [node name="VersionLabel" parent="MarginContainer/VBox" instance=ExtResource("6")]
 layout_mode = 2
 prepend = "v"
-
-[node name="ControlModResizable" parent="." instance=ExtResource("9_xhnrs")]
 
 [node name="ControlModSpacing" parent="MarginContainer" instance=ExtResource("10_spcng")]
 

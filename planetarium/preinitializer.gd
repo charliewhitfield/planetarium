@@ -44,6 +44,15 @@ const DISABLE_THREADS_IF_WEB := true # override for browser compatibility
 ## [code]--gpu-index[/code] for an integrated GPU under Forward+: without it, that
 ## run restarts into Compatibility and leaves Compatibility for every later run.
 const KEEP_RENDERER_ARG := "--keep-renderer"
+## Default key and Hotkeys-list label of each panel button action in
+## [code]gui/focus_gui.tscn[/code].
+const PANEL_ACTIONS: Dictionary[StringName, Array] = {
+	&"toggle_selection_details" : [KEY_1, &"LABEL_SHOW_HIDE_SELECTION_DETAILS"],
+	&"toggle_navigation_panel" : [KEY_2, &"LABEL_SHOW_HIDE_NAVIGATION_PANEL"],
+	&"toggle_huds_panel" : [KEY_3, &"LABEL_SHOW_HIDE_HUDS_PANEL"],
+	&"toggle_view_panel" : [KEY_4, &"LABEL_SHOW_HIDE_VIEW_PANEL"],
+	&"toggle_menu_panel" : [KEY_5, &"LABEL_SHOW_HIDE_MENU_PANEL"],
+}
 #const VERBOSE_GLOBAL_SIGNALS := false
 #const VERBOSE_STATEMANAGER_SIGNALS := false
 
@@ -107,7 +116,9 @@ func _init() -> void:
 	
 	# static class changes
 	IVTableInitializer.wiki_page_title_fields.append(&"en.wikipedia")
-	
+	IVTranslationImporter.translations.append(
+			"res://planetarium/text/planetarium_text.en.translation")
+
 	# User settings/options
 	IVSettingsManager.set_default(&"terrestrial_time_clock", false)
 	var options_popup: IVOptionsPopup = IVGlobal.get_node("/root/Universe/TopUI/OptionsPopup")
@@ -115,6 +126,25 @@ func _init() -> void:
 	options_popup.add_option(&"LABEL_TIME", &"LABEL_TERRESTRIAL_TIME_CLOCK",
 			&"terrestrial_time_clock")
 	options_popup.option_tooltips[&"terrestrial_time_clock"] = &"HINT_TERRESTRIAL_TIME_CLOCK"
+	# The GUI's IVControlModFade reads these two.
+	options_popup.add_option(&"LABEL_GUI_AND_HUD", &"LABEL_FADE_GUI_WHILE_DRAGGING",
+			&"gui_fade_while_dragging", 2)
+	options_popup.add_option(&"LABEL_GUI_AND_HUD", &"LABEL_FADE_GUI_WHEN_IDLE",
+			&"gui_fade_when_idle", 3)
+	options_popup.option_tooltips[&"gui_fade_while_dragging"] = &"HINT_FADE_GUI_WHILE_DRAGGING"
+	options_popup.option_tooltips[&"gui_fade_when_idle"] = &"HINT_FADE_GUI_WHEN_IDLE"
+
+	# User hotkeys
+	var hotkeys_popup: IVHotkeysPopup = IVGlobal.get_node("/root/Universe/TopUI/HotkeysPopup")
+	var gui_hotkeys: Array = hotkeys_popup.section_content[&"LABEL_GUI"]
+	for action in PANEL_ACTIONS:
+		var action_data := PANEL_ACTIONS[action]
+		var keycode: Key = action_data[0]
+		var label: StringName = action_data[1]
+		var event_dict := {&"event_class" : &"InputEventKey", &"keycode" : keycode}
+		IVInputMapManager.defaults[action] = [event_dict]
+		IVInputMapManager.action_texts[action] = label
+		gui_hotkeys.append(action)
 
 
 # Godot fixes the renderer at engine start, so a run whose renderer setting has come to

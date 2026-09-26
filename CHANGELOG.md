@@ -13,10 +13,11 @@ Under development using Godot 4.7.2.
 
 ### Added
 * Shader warm-up on the boot screen: registers the Core plugin's new IVShaderWarmup, and the boot screen now stays up through it, reporting *Compiling shaders (n of N)* with a note that only the first run after an update needs it. This moves the Compatibility renderer's shader compiles, which dominate a cold start and were hanging the camera mid-flight, onto the boot screen.
-* Added the Core plugin's new `IVExposureControl` widget to the control panel.
+* Added the Core plugin's new `IVExposureControl` widget to the Camera & Views panel.
 * Enabled the Core plugin's new physical-light system (`IVCoreSettings.enable_physical_light`): physically calibrated sunlight, sky and ambient with a software compensating camera. A "Physical Light" row appears in Options (default on).
 
 ### Changed
+* GUI rebuilt around the view (`gui/focus_gui.tscn`): a selection card with optional Details at top left, a time bar at bottom center, and buttons at top right that open Navigation, HUDs, Camera & Views or Menu at bottom right, one at a time (hotkeys 1-5). Panels no longer overlap at any window or GUI Size, and the GUI fades while the view is dragged and when idle (both in Options).
 * Turned off `IVCoreSettings.apply_gl_compatibility_shadows`, so the Compatibility renderer — and with it the web export — takes one unshadowed light instead of the shadowed multi-light stack. This cuts each lit shader from four GL programs to one, which is a large part of the cold-start shader compile the boot screen reports; what it costs is local shadow maps, in practice the ISS shadowing itself. The analytic ring, eclipse and transit shadows are unaffected.
 * Turned on the Core plugin's new `IVCoreSettings.apply_empty_shadow_pass_skip`, which drops the local shadow passes in any view with no spacecraft or local scene near the camera — 27-30 ms of a frame on weak integrated graphics. With `apply_gl_compatibility_shadows` off above, this acts on desktop Forward+ only.
 * Default the Core plugin's new "Atmosphere Quality" Option to Reduced on the web and on integrated graphics, where the limb shell is most of the frame in any view with air; a discrete GPU keeps Normal, in either renderer.
