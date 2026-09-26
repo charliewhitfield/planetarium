@@ -7,13 +7,16 @@
 [ext_resource type="DPITexture" uid="uid://5durunpuspsy" path="res://planetarium/gui/icons/navigation.svg" id="5_icon_navigation"]
 [ext_resource type="DPITexture" uid="uid://tet6sybmxvon" path="res://planetarium/gui/icons/huds.svg" id="6_icon_huds"]
 [ext_resource type="DPITexture" uid="uid://d1e4w28q7vdus" path="res://planetarium/gui/icons/view.svg" id="7_icon_view"]
-[ext_resource type="DPITexture" uid="uid://dhj0vdr73sjya" path="res://planetarium/gui/icons/menu.svg" id="8_icon_menu"]
+[ext_resource type="DPITexture" uid="uid://oh10l4m1ps6l" path="res://planetarium/gui/icons/info.svg" id="8_icon_info"]
 [ext_resource type="DPITexture" uid="uid://86bu7x8q65ye" path="res://planetarium/gui/icons/hide_gui.svg" id="9_icon_hide_gui"]
 [ext_resource type="PackedScene" uid="uid://diafd62ta13cn" path="res://planetarium/gui/nav_panel.tscn" id="10_nav_panel"]
 [ext_resource type="PackedScene" uid="uid://whpgdl66sqph" path="res://planetarium/gui/huds_panel.tscn" id="11_huds_panel"]
 [ext_resource type="PackedScene" uid="uid://ba7271tsjvr4o" path="res://planetarium/gui/view_panel.tscn" id="12_view_panel"]
-[ext_resource type="PackedScene" uid="uid://bevu554s76x0f" path="res://planetarium/gui/menu_panel.tscn" id="13_menu_panel"]
+[ext_resource type="PackedScene" uid="uid://bwlx340pfijqd" path="res://planetarium/gui/info_panel.tscn" id="13_info_panel"]
 [ext_resource type="PackedScene" uid="uid://dglsn48wnive" path="res://planetarium/gui/details_panel.tscn" id="14_details_panel"]
+[ext_resource type="Script" uid="uid://dq5nev1sa608g" path="res://addons/ivoyager_core/ui_widgets/hotkeys_button.gd" id="16_hotkeys_button"]
+[ext_resource type="Script" uid="uid://crfmdej6b2qm4" path="res://addons/ivoyager_core/ui_widgets/options_button.gd" id="17_options_button"]
+[ext_resource type="Script" uid="uid://57h2ng8gqwmq" path="res://addons/ivoyager_core/ui_widgets/full_screen_button.gd" id="18_full_screen_button"]
 [ext_resource type="PackedScene" uid="uid://bk1wcjtaqcyyd" path="res://addons/ivoyager_core/ui_widgets/selection_buttons.tscn" id="20_selection_buttons"]
 [ext_resource type="PackedScene" uid="uid://c71yn7f8ovhrl" path="res://addons/ivoyager_core/ui_widgets/selection_label.tscn" id="21_selection_label"]
 [ext_resource type="PackedScene" uid="uid://b5k2m7jen3jwm" path="res://addons/ivoyager_core/ui_widgets/range_label.tscn" id="22_range_label"]
@@ -26,6 +29,10 @@
 [ext_resource type="PackedScene" uid="uid://bgk3lju7s35t" path="res://addons/ivoyager_core/ui_widgets/time_set_button.tscn" id="29_time_set_button"]
 [ext_resource type="PackedScene" uid="uid://bkcj6agxxgfw" path="res://addons/ivoyager_core/ui_components/control_mod_resizable.tscn" id="30_resizable"]
 [ext_resource type="PackedScene" uid="uid://cimxq7ent5esq" path="res://addons/ivoyager_core/ui_components/control_mod_spacing.tscn" id="31_spacing"]
+[ext_resource type="DPITexture" uid="uid://pw2dri2d7u20" path="res://planetarium/gui/icons/hotkeys.svg" id="32_icon_hotkeys"]
+[ext_resource type="DPITexture" uid="uid://bu0t44s80028d" path="res://planetarium/gui/icons/options.svg" id="33_icon_options"]
+[ext_resource type="DPITexture" uid="uid://dwbcfcyucfd3c" path="res://planetarium/gui/icons/full_screen.svg" id="34_icon_full_screen"]
+[ext_resource type="DPITexture" uid="uid://b3qeqhq687nq7" path="res://planetarium/gui/icons/full_screen_exit.svg" id="35_icon_full_screen_exit"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_panels"]
 allow_unpress = true
@@ -45,14 +52,44 @@ script = ExtResource("1_edge")
 base_margin = 12.0
 base_separation = 10.0
 
-[node name="PanelButtons" type="VBoxContainer" parent="."]
+[node name="ButtonGrid" type="GridContainer" parent="."]
 layout_mode = 2
 size_flags_horizontal = 8
 size_flags_vertical = 0
 mouse_filter = 2
-theme_override_constants/separation = 8
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 2
 
-[node name="NavigationButton" type="Button" parent="PanelButtons" node_paths=PackedStringArray("panel")]
+[node name="HideGUIButton" type="Button" parent="ButtonGrid"]
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "HINT_HIDE_GUI"
+theme_type_variation = &"RoundButton"
+icon = ExtResource("9_icon_hide_gui")
+icon_alignment = 1
+expand_icon = true
+script = ExtResource("4_hide_gui_button")
+
+[node name="ControlModResizable" parent="ButtonGrid/HideGUIButton" instance=ExtResource("30_resizable")]
+base_size = Vector2(44, 44)
+
+[node name="FullScreenButton" type="Button" parent="ButtonGrid"]
+layout_mode = 2
+focus_mode = 0
+theme_type_variation = &"RoundButton"
+icon = ExtResource("34_icon_full_screen")
+icon_alignment = 1
+expand_icon = true
+script = ExtResource("18_full_screen_button")
+minimize_text = &"HINT_EXIT_FULL_SCREEN"
+full_screen_icon = ExtResource("34_icon_full_screen")
+minimize_icon = ExtResource("35_icon_full_screen_exit")
+
+[node name="ControlModResizable" parent="ButtonGrid/FullScreenButton" instance=ExtResource("30_resizable")]
+base_size = Vector2(44, 44)
+
+[node name="NavigationButton" type="Button" parent="ButtonGrid" node_paths=PackedStringArray("panel")]
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "HINT_NAVIGATION_PANEL"
@@ -66,10 +103,23 @@ script = ExtResource("3_panel_button")
 panel = NodePath("../../NavPanel")
 input_action = &"toggle_navigation_panel"
 
-[node name="ControlModResizable" parent="PanelButtons/NavigationButton" instance=ExtResource("30_resizable")]
+[node name="ControlModResizable" parent="ButtonGrid/NavigationButton" instance=ExtResource("30_resizable")]
 base_size = Vector2(44, 44)
 
-[node name="HUDsButton" type="Button" parent="PanelButtons" node_paths=PackedStringArray("panel")]
+[node name="OptionsButton" type="Button" parent="ButtonGrid"]
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "BUTTON_OPTIONS"
+theme_type_variation = &"RoundButton"
+icon = ExtResource("33_icon_options")
+icon_alignment = 1
+expand_icon = true
+script = ExtResource("17_options_button")
+
+[node name="ControlModResizable" parent="ButtonGrid/OptionsButton" instance=ExtResource("30_resizable")]
+base_size = Vector2(44, 44)
+
+[node name="HUDsButton" type="Button" parent="ButtonGrid" node_paths=PackedStringArray("panel")]
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "HINT_HUDS_PANEL"
@@ -83,10 +133,23 @@ script = ExtResource("3_panel_button")
 panel = NodePath("../../HUDsPanel")
 input_action = &"toggle_huds_panel"
 
-[node name="ControlModResizable" parent="PanelButtons/HUDsButton" instance=ExtResource("30_resizable")]
+[node name="ControlModResizable" parent="ButtonGrid/HUDsButton" instance=ExtResource("30_resizable")]
 base_size = Vector2(44, 44)
 
-[node name="ViewButton" type="Button" parent="PanelButtons" node_paths=PackedStringArray("panel")]
+[node name="HotkeysButton" type="Button" parent="ButtonGrid"]
+layout_mode = 2
+focus_mode = 0
+tooltip_text = "BUTTON_HOTKEYS"
+theme_type_variation = &"RoundButton"
+icon = ExtResource("32_icon_hotkeys")
+icon_alignment = 1
+expand_icon = true
+script = ExtResource("16_hotkeys_button")
+
+[node name="ControlModResizable" parent="ButtonGrid/HotkeysButton" instance=ExtResource("30_resizable")]
+base_size = Vector2(44, 44)
+
+[node name="ViewButton" type="Button" parent="ButtonGrid" node_paths=PackedStringArray("panel")]
 layout_mode = 2
 focus_mode = 0
 tooltip_text = "HINT_VIEW_PANEL"
@@ -100,47 +163,27 @@ script = ExtResource("3_panel_button")
 panel = NodePath("../../ViewPanel")
 input_action = &"toggle_view_panel"
 
-[node name="ControlModResizable" parent="PanelButtons/ViewButton" instance=ExtResource("30_resizable")]
+[node name="ControlModResizable" parent="ButtonGrid/ViewButton" instance=ExtResource("30_resizable")]
 base_size = Vector2(44, 44)
 
-[node name="MenuButton" type="Button" parent="PanelButtons" node_paths=PackedStringArray("panel")]
+[node name="InfoButton" type="Button" parent="ButtonGrid" node_paths=PackedStringArray("panel")]
 layout_mode = 2
 focus_mode = 0
-tooltip_text = "HINT_MENU_PANEL"
+tooltip_text = "HINT_INFO_PANEL"
 theme_type_variation = &"RoundButton"
 toggle_mode = true
 button_group = SubResource("ButtonGroup_panels")
-icon = ExtResource("8_icon_menu")
+icon = ExtResource("8_icon_info")
 icon_alignment = 1
 expand_icon = true
 script = ExtResource("3_panel_button")
-panel = NodePath("../../MenuPanel")
-input_action = &"toggle_menu_panel"
+panel = NodePath("../../InfoPanel")
+input_action = &"toggle_info_panel"
 
-[node name="ControlModResizable" parent="PanelButtons/MenuButton" instance=ExtResource("30_resizable")]
+[node name="ControlModResizable" parent="ButtonGrid/InfoButton" instance=ExtResource("30_resizable")]
 base_size = Vector2(44, 44)
 
-[node name="Gap" type="Control" parent="PanelButtons"]
-layout_mode = 2
-mouse_filter = 2
-
-[node name="ControlModResizable" parent="PanelButtons/Gap" instance=ExtResource("30_resizable")]
-base_size = Vector2(0, 6)
-
-[node name="HideGUIButton" type="Button" parent="PanelButtons"]
-layout_mode = 2
-focus_mode = 0
-tooltip_text = "HINT_HIDE_GUI"
-theme_type_variation = &"RoundButton"
-icon = ExtResource("9_icon_hide_gui")
-icon_alignment = 1
-expand_icon = true
-script = ExtResource("4_hide_gui_button")
-
-[node name="ControlModResizable" parent="PanelButtons/HideGUIButton" instance=ExtResource("30_resizable")]
-base_size = Vector2(44, 44)
-
-[node name="ControlModSpacing" parent="PanelButtons" instance=ExtResource("31_spacing")]
+[node name="ControlModSpacing" parent="ButtonGrid" instance=ExtResource("31_spacing")]
 
 [node name="NavPanel" parent="." instance=ExtResource("10_nav_panel")]
 visible = false
@@ -160,7 +203,7 @@ layout_mode = 2
 size_flags_horizontal = 8
 size_flags_vertical = 8
 
-[node name="MenuPanel" parent="." instance=ExtResource("13_menu_panel")]
+[node name="InfoPanel" parent="." instance=ExtResource("13_info_panel")]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 8
