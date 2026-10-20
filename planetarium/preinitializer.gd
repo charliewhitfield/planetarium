@@ -92,7 +92,7 @@ func _init() -> void:
 	IVQFormat.exponent_str = " ×10^"
 	
 	# static class changes
-	IVTableInitializer.wiki_page_title_fields.append(&"en.wikipedia")
+	IVTableInitializer.wiki_page_title_fields.append_array([&"en.wikipedia", &"de.wikipedia"])
 
 	# User settings/options
 	IVSettingsManager.graphics_target = IVSettingsManager.GraphicsTarget.BROAD_HARDWARE

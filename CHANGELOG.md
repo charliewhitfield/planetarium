@@ -12,7 +12,7 @@ See cloning and downloading instructions [here](https://www.ivoyager.dev/develop
 Under development using Godot 4.7.2.
 
 ### Added
-* German translation of the Planetarium's text (`planetarium_text.csv`), with the Core and Units plugins' own.
+* German translation of the Planetarium's text (`planetarium_text.csv`), with the Core and Units plugins' own, and German Wikipedia links (the preinitializer loads `de.wikipedia`).
 
 ### Changed
 * The Planetarium's translation is listed in project.godot rather than added by the preinitializer, and the Units plugin's is no longer listed there (Core adds it now).
