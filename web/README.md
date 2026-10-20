@@ -1,7 +1,7 @@
 # Progressive Web App (PWA) Deployment
 
 These files are referenced in export_presets.cfg and used to generate the HTML5 export:
-* godot.html - Custom Html Shell used to generate our loading page.
+* godot.html - Custom Html Shell used to generate our loading page. Its text, in English and German, is in `PAGE_TEXTS`: the page opens in the browser's first language, as the app's Automatic language setting does, or in the one a link asks for (`planetarium.html?lang=de`), and its English · Deutsch links switch it while the app downloads. The app's Automatic setting follows a language chosen either way; nothing remembers it for the next visit. The installed app opens without `?lang=`, and offline only that link loads.
 * jupiter-xxx.png - Icon images (3 sizes) included in PWA export.
 
 These are used after export:
