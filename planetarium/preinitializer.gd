@@ -109,7 +109,7 @@ func _init() -> void:
 	_copy_theme_type(focus_theme, IVThemeManager.get_main_theme(), &"AccentButton")
 	
 	# static class changes
-	IVTableInitializer.wiki_page_title_fields.append(&"en.wikipedia")
+	IVTableInitializer.wiki_page_title_fields.append_array([&"en.wikipedia", &"de.wikipedia"])
 
 	# User settings/options
 	IVSettingsManager.graphics_target = IVSettingsManager.GraphicsTarget.BROAD_HARDWARE
