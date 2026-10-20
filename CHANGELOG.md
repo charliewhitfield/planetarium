@@ -13,7 +13,7 @@ Under development using Godot 4.7.2.
 
 ### Added
 * The Assistant plugin's user assistant is enabled and named Galileo (`[assistant]` in `ivoyager_override.cfg`), with its autoload `IVAssistant` in project.godot. The user connects it to a model in the Assistant's setup wizard, opened from an experimental button in Options or from the panel at the bottom center where they talk with it (`planetarium/gui/galileo_button.gd`, key 6), whose button (after Navigation's) is there to offer setup until they connect or decline it; Options' "AI Guide" section, hidden where the assistant offers the user nothing, also holds the Assistant's "Show API Commands". Its instructions are `planetarium/galileo_instructions.txt`; its `compact` tool set for a small model includes new `BodyFinder`, which finds a body's key from the user's words, and new `ExternalLinks`, which opens the Info panel's pages, and its `full` set for a large model adds the generic tools.
-* German translation of the Planetarium's text (`planetarium_text.csv`), with the Core and Units plugins' own, and German Wikipedia links (the preinitializer loads `de.wikipedia`).
+* German translation of the Planetarium's text (`planetarium_text.csv`), with the Core and Units plugins' own, and German Wikipedia links (the preinitializer loads `de.wikipedia`). The web app's loading page (`web/godot.html`) shows German too, by the browser's language, a `?lang=de` link parameter or its own English · Deutsch switch, and the app's Automatic language follows a language chosen there.
 
 ### Changed
 * The Planetarium's translation is listed in project.godot rather than added by the preinitializer, and the Units plugin's is no longer listed there (Core adds it now).

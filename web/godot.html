@@ -159,12 +159,9 @@ a {
 
 		<div id='graphics-lost'>
 			<div id='graphics-lost-notice'>
-				<p>
-					The browser stopped the Planetarium's graphics. If this keeps happening,
-					reload with the graphics settings recommended for this device.
-				</p>
-				<button id='graphics-lost-reload'>Reload</button>
-				<button id='graphics-lost-reset'>Reload with Recommended Settings</button>
+				<p data-text='graphics_lost'></p>
+				<button id='graphics-lost-reload' data-text='reload'></button>
+				<button id='graphics-lost-reset' data-text='reload_recommended'></button>
 			</div>
 		</div>
 
@@ -178,35 +175,112 @@ a {
 				<div>
 					<p>
 						I, Voyager - Planetarium<br>
-						v0.2.2<br><br>
-						Loading...
+						v0.2.3.dev1
 					</p>
+					<p id='language-choices'></p>
+					<p data-text='loading'></p>
 					<progress id="status-progress"></progress>
 					<div id="status-notice"></div>
 					<p>
-						<br>You can install the Planetarium as a web app! After download, 
-						look for the install icon in the URL bar of your browser.<br>
+						<br><span data-text='install_web_app'></span><br>
 					</p>
 					<p>
-						A native Windows app can be downloaded 
-						<a href='https://www.ivoyager.dev/planetarium/' target='_blank'>here</a>. <br>
+						<span data-text='windows_app'></span><br>
 					</p>
-					<p>
-						Please consider supporting us at our GitHub 
-						<a href='https://github.com/sponsors/ivoyager' target='_blank'>Sponsor's Page!</a>
-					</p>
+					<p data-text='support_us'></p>
 				</div>
-				<a id='pbd-caption' href='https://www.planetary.org/worlds/pale-blue-dot' target='_blank'>
-					Pale Blue Dot<br><br>
-					Earth as seen by Voyager 1 from 6.4 billion kilometers.
-				</a>
+				<a id='pbd-caption' href='https://www.planetary.org/worlds/pale-blue-dot' target='_blank'
+						data-text='pbd_caption'></a>
 			</div>
 		</div>
 
+		<script>
+// Planetarium: the page's text in each language it offers. An element's text is HTML, a status
+// notice's plain text. The page opens in the language a "lang" query parameter names (?lang=de),
+// or else in the browser's first language, which the app's Automatic language setting also
+// follows; a language not offered here shows as English. Its language links switch it while the
+// app downloads. The app's Automatic setting follows a language chosen either way, and nothing
+// remembers the choice for the next visit. Runs before the engine script so that the first paint
+// is already in the page's language.
+const PAGE_TEXTS = {
+	'en': {
+		'language_name': 'English',
+		'loading': 'Loading...',
+		'install_web_app': 'You can install the Planetarium as a web app! After download, look for the install icon in the URL bar of your browser.',
+		'windows_app': 'A native Windows app can be downloaded <a href="https://www.ivoyager.dev/planetarium/" target="_blank">here</a>.',
+		'support_us': 'Please consider supporting us at our GitHub <a href="https://github.com/sponsors/ivoyager" target="_blank">Sponsor\'s Page!</a>',
+		'pbd_caption': 'Pale Blue Dot<br><br>Earth as seen by Voyager 1 from 6.4 billion kilometers.',
+		'graphics_lost': 'The browser stopped the Planetarium\'s graphics. If this keeps happening, reload with the graphics settings recommended for this device.',
+		'reload': 'Reload',
+		'reload_recommended': 'Reload with Recommended Settings',
+		'missing_features': 'Error\nThe following features required to run Godot projects on the Web are missing:\n',
+		'unknown_error': 'An unknown error occurred.',
+	},
+	'de': {
+		'language_name': 'Deutsch',
+		'loading': 'Wird geladen...',
+		'install_web_app': 'Sie können das Planetarium als Web-App installieren! Suchen Sie nach dem Download das Installationssymbol in der Adressleiste Ihres Browsers.',
+		'windows_app': 'Eine native Windows-App können Sie <a href="https://www.ivoyager.dev/planetarium/" target="_blank">hier</a> herunterladen.',
+		'support_us': 'Bitte unterstützen Sie uns auf unserer <a href="https://github.com/sponsors/ivoyager" target="_blank">GitHub-Sponsorenseite</a>!',
+		'pbd_caption': 'Pale Blue Dot<br><br>Die Erde, von Voyager 1 aus 6,4 Milliarden Kilometern Entfernung gesehen.',
+		'graphics_lost': 'Der Browser hat die Grafik des Planetariums angehalten. Passiert das wiederholt, laden Sie mit den für dieses Gerät empfohlenen Grafikeinstellungen neu.',
+		'reload': 'Neu laden',
+		'reload_recommended': 'Mit empfohlenen Einstellungen neu laden',
+		'missing_features': 'Fehler\nFolgende Funktionen, die Godot-Projekte im Web benötigen, fehlen:\n',
+		'unknown_error': 'Ein unbekannter Fehler ist aufgetreten.',
+	},
+};
+const PAGE_LANGUAGES = Object.keys(PAGE_TEXTS);
+const languageParameter = new URLSearchParams(window.location.search).get('lang');
+const pageLocale = languageParameter || navigator.languages?.[0] || navigator.language || 'en';
+const localeLanguage = pageLocale.split(/[-_]/)[0].toLowerCase();
+// The engine's locale, if not the browser's.
+let chosenLanguage = languageParameter ? localeLanguage : '';
+let pageTexts = null;
+
+function setPageLanguage(language) {
+	pageTexts = PAGE_TEXTS[language];
+	document.documentElement.lang = language;
+	document.querySelectorAll('[data-text]').forEach((element) => {
+		element.innerHTML = pageTexts[element.dataset.text];
+	});
+	document.getElementById('language-choices').innerHTML = PAGE_LANGUAGES.map((choice) => {
+		const name = PAGE_TEXTS[choice]['language_name'];
+		if (choice === language) {
+			return name;
+		}
+		return `<a href="?lang=${choice}" lang="${choice}" data-language="${choice}">${name}</a>`;
+	}).join(' · ');
+}
+
+setPageLanguage(PAGE_LANGUAGES.includes(localeLanguage) ? localeLanguage : 'en');
+document.getElementById('language-choices').addEventListener('click', (event) => {
+	const link = event.target.closest('[data-language]');
+	if (!link) {
+		return;
+	}
+	// A reload would restart the download. The link's address is for opening a new tab.
+	event.preventDefault();
+	chosenLanguage = link.dataset.language;
+	setPageLanguage(chosenLanguage);
+});
+		</script>
 		<script src="$GODOT_URL"></script>
 		<script>
 const GODOT_CONFIG = $GODOT_CONFIG;
 const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+// Planetarium: Engine.init takes the progress callback from here, and the start-up below can't
+// pass it later.
+GODOT_CONFIG['onProgress'] = function (current, total) {
+	const statusProgress = document.getElementById('status-progress');
+	if (current > 0 && total > 0) {
+		statusProgress.value = current;
+		statusProgress.max = total;
+	} else {
+		statusProgress.removeAttribute('value');
+		statusProgress.removeAttribute('max');
+	}
+};
 const engine = new Engine(GODOT_CONFIG);
 
 // Planetarium: a way back from graphics settings the device can't carry. The hash asks Core to
@@ -270,7 +344,7 @@ document.getElementById('graphics-lost-reset').addEventListener('click', () => {
 		} else if (typeof err === 'string') {
 			setStatusNotice(err);
 		} else {
-			setStatusNotice('An unknown error occurred.');
+			setStatusNotice(pageTexts['unknown_error']);
 		}
 		setStatusMode('notice');
 		initializing = false;
@@ -308,23 +382,26 @@ document.getElementById('graphics-lost-reset').addEventListener('click', () => {
 			});
 		} else {
 			// Display the message as usual
-			const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
-			displayFailureNotice(missingMsg + missing.join('\n'));
+			displayFailureNotice(pageTexts['missing_features'] + missing.join('\n'));
 		}
 	} else {
 		setStatusMode('progress');
+		// Planetarium: startGame's steps, taken one by one so that the engine starts in a language
+		// chosen while it downloaded. The app's Automatic language setting follows its locale.
+		const executable = GODOT_CONFIG['executable'];
+		const mainPack = GODOT_CONFIG['mainPack'] || `${executable}.pck`;
 		const args = GODOT_CONFIG['args'] || [];
-		engine.startGame({
-			'args': isResetGraphics ? args.concat(['--', '--reset-graphics']) : args,
-			'onProgress': function (current, total) {
-				if (current > 0 && total > 0) {
-					statusProgress.value = current;
-					statusProgress.max = total;
-				} else {
-					statusProgress.removeAttribute('value');
-					statusProgress.removeAttribute('max');
-				}
-			},
+		Promise.all([
+			engine.init(executable),
+			engine.preloadFile(mainPack, mainPack),
+		]).then(() => {
+			const override = {
+				'args': ['--main-pack', mainPack].concat(isResetGraphics ? args.concat(['--', '--reset-graphics']) : args),
+			};
+			if (chosenLanguage) {
+				override['locale'] = chosenLanguage;
+			}
+			return engine.start(override);
 		}).then(() => {
 			setStatusMode('hidden');
 		}, displayFailureNotice);
