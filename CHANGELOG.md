@@ -11,6 +11,9 @@ See cloning and downloading instructions [here](https://www.ivoyager.dev/develop
 
 Under development using Godot 4.7.2.
 
+### Added
+* German translation of the Planetarium's text (`planetarium_text.csv`), with the Core and Units plugins' own.
+
 ### Changed
 * The Planetarium's translation is listed in project.godot rather than added by the preinitializer, and the Units plugin's is no longer listed there (Core adds it now).
 * `planetarium/assistant_context.txt` tells Assistant clients how to work through the members Core's classes declare (`describe`, `get`, `call`, batches and widgets): framing a body by view, hiding the GUI and 3D HUDs for a screenshot, reusing the maintainer's saved views, and setting user settings and HUDs by class.

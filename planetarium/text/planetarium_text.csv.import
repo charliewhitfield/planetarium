@@ -6,10 +6,10 @@ uid="uid://xbxa663j1epx"
 
 [deps]
 
-files=["res://planetarium/text/planetarium_text.en.translation"]
+files=["res://planetarium/text/planetarium_text.en.translation", "res://planetarium/text/planetarium_text.de.translation"]
 
 source_file="res://planetarium/text/planetarium_text.csv"
-dest_files=["res://planetarium/text/planetarium_text.en.translation"]
+dest_files=["res://planetarium/text/planetarium_text.en.translation", "res://planetarium/text/planetarium_text.de.translation"]
 
 [params]
 

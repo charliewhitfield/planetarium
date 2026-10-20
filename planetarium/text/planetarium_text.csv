@@ -1,22 +1,22 @@
-id,en
-BUTTON_DETAILS,Details
-HINT_CONTROL_PANEL,Controls
-HINT_EXIT_FULL_SCREEN,Exit Full Screen
-HINT_HUDS_PANEL,HUDs
-HINT_INFO_PANEL,Info
-HINT_NAVIGATION_PANEL,Navigation
-HINT_SELECTION_DETAILS,Details of the selected body
-LABEL_SHOW_HIDE_CONTROL_PANEL,Show/Hide Control Panel
-LABEL_SHOW_HIDE_HUDS_PANEL,Show/Hide HUDs Panel
-LABEL_SHOW_HIDE_INFO_PANEL,Show/Hide Info Panel
-LABEL_SHOW_HIDE_NAVIGATION_PANEL,Show/Hide Navigation Panel
-LABEL_SHOW_HIDE_SELECTION_DETAILS,Show/Hide Selection Details
-TXT_BUILDING_SOLAR_SYSTEM,Building the Solar System...
-TXT_COMPILING_SHADERS_CONSTRUCTOR,Compiling shaders (%d of %d)...
-TXT_LINK_ASSETS,[url=https://github.com/ivoyager/planetarium/blob/master/IVOYAGER_ASSETS.md]Assets[/url]
-TXT_LINK_CREDITS,[url=https://github.com/ivoyager/planetarium/blob/master/CREDITS.md]Credits[/url]
-TXT_LINK_FEEDBACK,[url=https://github.com/orgs/ivoyager/discussions]Feedback[/url]
-TXT_LINK_LICENSE,[url=https://github.com/ivoyager/planetarium/blob/master/LICENSE.txt]License[/url]
-TXT_LINK_SUPPORT_US,[url=https://github.com/sponsors/ivoyager]Support Us![/url]
-TXT_LINK_THIRD_PARTY,[url=https://github.com/ivoyager/planetarium/blob/master/3RD_PARTY.md]3rd Party[/url]
-TXT_WEB_BOOT_NOTE,"\n\n\nYour browser should cache shaders, making revisits faster.\n\nThe web app will start initially with low graphic settings.\nTry bumping these in user options if you have a capable desktop."
+id,en,de
+BUTTON_DETAILS,Details,Details
+HINT_CONTROL_PANEL,Controls,Steuerung
+HINT_EXIT_FULL_SCREEN,Exit Full Screen,Vollbild beenden
+HINT_HUDS_PANEL,HUDs,HUDs
+HINT_INFO_PANEL,Info,Info
+HINT_NAVIGATION_PANEL,Navigation,Navigation
+HINT_SELECTION_DETAILS,Details of the selected body,Details zum ausgewählten Körper
+LABEL_SHOW_HIDE_CONTROL_PANEL,Show/Hide Control Panel,Steuerfeld ein/aus
+LABEL_SHOW_HIDE_HUDS_PANEL,Show/Hide HUDs Panel,HUD-Feld ein/aus
+LABEL_SHOW_HIDE_INFO_PANEL,Show/Hide Info Panel,Infofeld ein/aus
+LABEL_SHOW_HIDE_NAVIGATION_PANEL,Show/Hide Navigation Panel,Navigationsfeld ein/aus
+LABEL_SHOW_HIDE_SELECTION_DETAILS,Show/Hide Selection Details,Auswahldetails ein/aus
+TXT_BUILDING_SOLAR_SYSTEM,Building the Solar System...,Das Sonnensystem wird aufgebaut...
+TXT_COMPILING_SHADERS_CONSTRUCTOR,Compiling shaders (%d of %d)...,Shader werden kompiliert (%d von %d)...
+TXT_LINK_ASSETS,[url=https://github.com/ivoyager/planetarium/blob/master/IVOYAGER_ASSETS.md]Assets[/url],[url=https://github.com/ivoyager/planetarium/blob/master/IVOYAGER_ASSETS.md]Assets[/url]
+TXT_LINK_CREDITS,[url=https://github.com/ivoyager/planetarium/blob/master/CREDITS.md]Credits[/url],[url=https://github.com/ivoyager/planetarium/blob/master/CREDITS.md]Mitwirkende[/url]
+TXT_LINK_FEEDBACK,[url=https://github.com/orgs/ivoyager/discussions]Feedback[/url],[url=https://github.com/orgs/ivoyager/discussions]Feedback[/url]
+TXT_LINK_LICENSE,[url=https://github.com/ivoyager/planetarium/blob/master/LICENSE.txt]License[/url],[url=https://github.com/ivoyager/planetarium/blob/master/LICENSE.txt]Lizenz[/url]
+TXT_LINK_SUPPORT_US,[url=https://github.com/sponsors/ivoyager]Support Us![/url],[url=https://github.com/sponsors/ivoyager]Unterstützen[/url]
+TXT_LINK_THIRD_PARTY,[url=https://github.com/ivoyager/planetarium/blob/master/3RD_PARTY.md]3rd Party[/url],[url=https://github.com/ivoyager/planetarium/blob/master/3RD_PARTY.md]Drittanbieter[/url]
+TXT_WEB_BOOT_NOTE,"\n\n\nYour browser should cache shaders, making revisits faster.\n\nThe web app will start initially with low graphic settings.\nTry bumping these in user options if you have a capable desktop.","\n\n\nIhr Browser sollte die Shader zwischenspeichern, sodass weitere Besuche schneller sind.\n\nDie Web-App startet zunächst mit niedrigen Grafikeinstellungen.\nAuf einem leistungsfähigen Desktop lassen sie sich in den Optionen erhöhen."

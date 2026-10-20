@@ -127,7 +127,7 @@ ui_down={
 
 [internationalization]
 
-locale/translations=PackedStringArray("res://planetarium/text/planetarium_text.en.translation")
+locale/translations=PackedStringArray("res://planetarium/text/planetarium_text.en.translation", "res://planetarium/text/planetarium_text.de.translation")
 
 [logging]
 
