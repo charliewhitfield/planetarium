@@ -41,6 +41,7 @@ const PANEL_ACTIONS: Dictionary[StringName, Array] = {
 	&"toggle_huds_panel" : [KEY_3, &"LABEL_SHOW_HIDE_HUDS_PANEL"],
 	&"toggle_info_panel" : [KEY_4, &"LABEL_SHOW_HIDE_INFO_PANEL"],
 	&"toggle_selection_details" : [KEY_5, &"LABEL_SHOW_HIDE_SELECTION_DETAILS"],
+	&"toggle_galileo_panel" : [KEY_6, &"LABEL_SHOW_HIDE_GALILEO"],
 }
 #const VERBOSE_GLOBAL_SIGNALS := false
 #const VERBOSE_STATEMANAGER_SIGNALS := false

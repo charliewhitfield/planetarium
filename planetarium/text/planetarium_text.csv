@@ -3,6 +3,7 @@ BUTTON_DETAILS,Details
 BUTTON_SET_UP_GALILEO,Set Up Galileo (Experimental)...
 HINT_CONTROL_PANEL,Controls
 HINT_EXIT_FULL_SCREEN,Exit Full Screen
+HINT_GALILEO_PANEL,"Galileo, your AI guide"
 HINT_HUDS_PANEL,HUDs
 HINT_INFO_PANEL,Info
 HINT_NAVIGATION_PANEL,Navigation
@@ -10,6 +11,7 @@ HINT_SELECTION_DETAILS,Details of the selected body
 HINT_SET_UP_GALILEO,"Galileo is an AI guide that answers your questions and operates the Planetarium for you. Connect it to an AI model of your choice: one on this computer, or an online service with your own key."
 LABEL_AI_GUIDE,AI Guide
 LABEL_SHOW_HIDE_CONTROL_PANEL,Show/Hide Control Panel
+LABEL_SHOW_HIDE_GALILEO,Show/Hide Galileo
 LABEL_SHOW_HIDE_HUDS_PANEL,Show/Hide HUDs Panel
 LABEL_SHOW_HIDE_INFO_PANEL,Show/Hide Info Panel
 LABEL_SHOW_HIDE_NAVIGATION_PANEL,Show/Hide Navigation Panel
