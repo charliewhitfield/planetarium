@@ -115,6 +115,10 @@ func _init() -> void:
 			&"gui_fade_when_idle", 3)
 	options_popup.option_tooltips[&"gui_fade_while_dragging"] = &"HINT_FADE_GUI_WHILE_DRAGGING"
 	options_popup.option_tooltips[&"gui_fade_when_idle"] = &"HINT_FADE_GUI_WHEN_IDLE"
+	if IVAssistant.has_setup_wizard(): # experimental
+		options_popup.add_section(&"LABEL_AI_GUIDE", 0)
+		options_popup.add_button(&"LABEL_AI_GUIDE", &"BUTTON_SET_UP_GALILEO",
+				IVAssistant.open_setup_wizard, &"HINT_SET_UP_GALILEO")
 
 	# User hotkeys
 	var hotkeys_popup: IVHotkeysPopup = IVGlobal.get_node("/root/Universe/TopUI/HotkeysPopup")
