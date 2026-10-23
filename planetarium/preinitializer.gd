@@ -87,6 +87,7 @@ func _init() -> void:
 	IVCoreInitializer.program_refcounteds["WikiManager"] = IVWikiManager
 	IVCoreInitializer.program_nodes["ViewCacher"] = ViewCacher
 	IVCoreInitializer.program_nodes["ShaderWarmup"] = IVShaderWarmup
+	IVCoreInitializer.program_refcounteds["BodyFinder"] = BodyFinder # the assistant's tool
 	
 	# other singleton changes
 	IVQFormat.exponent_str = " ×10^"
